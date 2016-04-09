@@ -23,12 +23,24 @@ conDB = sqlite3.connect('D:/Test/kicker_db/kicker_main.sqlite')
 # conncect cursor to DB
 c = conDB.cursor()
 
+
+# The following steps are only necessary once, though running them again does no harm
+
 # create table to store Manager ID (as primary key) and Manager Name as Text
 c.execute('CREATE TABLE IF NOT EXISTS Manager(Manager_ID INTEGER PRIMARY KEY, Manager_Name TEXT)')
 
+# create table KeepTrack that keeps track of processed data using single digits
+# (0 = not processed, 1 = finished, 2 = started but not finished)
+# columns are League/Seasons; rows are Gamedays
+try:
+    c.execute('CREATE TABLE KeepTrack (GameDay TEXT, BL1_{0} INTEGER, BL2_{0} INTEGER)'.format(season[2:]))
+    for rowName in ['GD' + str(n) for n in range(1,35)]:
+        c.execute('INSERT OR IGNORE INTO KeepTrack (GameDay, BL1_{0}, BL2_{0}) VALUES ("{1}","0","0")'.format(season[2:],rowName))
+except:
+    pass
 
 # create a table for the current season and league
-pointTblName = 'BL'+league+"_"+season[2:]
+pointTblName = 'BL' + league + "_" + season[2:]
 c.execute('CREATE TABLE IF NOT EXISTS ' + pointTblName + ' (Manager_ID INTEGER PRIMARY KEY)')
 
 # store the  points of each Manager for each day in a column, GD = GameDay
