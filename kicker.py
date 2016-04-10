@@ -98,6 +98,7 @@ LOS_Button.send_keys(Keys.ENTER)
 
 
 
+
 def scrapePoints(dbName,league,maxGD):
     """
     function that scrapes the points of every single gameday for each manager and stores them
@@ -173,8 +174,6 @@ def scrapePoints(dbName,league,maxGD):
                     td_elem = tr_elem('td', class_="alignright last")
                     for elem in td_elem:
                         kickerPoints = elem.text
-                        print(kickerName, kickerID, kickerPoints)
-                        print(type(kickerName), type(kickerID), type(kickerPoints))
                      
                         # write Manager IDs and Names in table, ignore if already exists
                         c.execute('INSERT OR IGNORE INTO Manager VALUES (?,?)', (kickerID,kickerName))            
@@ -192,7 +191,7 @@ def scrapePoints(dbName,league,maxGD):
                 c.execute('UPDATE KeepTrack SET BL{}_{}=1 WHERE GameDay = "GD{}"'.format(league,season[2:],Spieltag))
                 break
             
-            except Exception as e:
+            except Exception:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
                 fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
                 print(exc_type, fname, exc_tb.tb_lineno)
@@ -202,6 +201,179 @@ def scrapePoints(dbName,league,maxGD):
     driver.close()
     conDB.commit()
     conDB.close()
-    
+ 
 
-scrapePoints(dbName,league,maxGD)
+
+
+   
+def scrapePlayers(dbName, season, league):
+    """
+    scrapes the information of all available players, one table per season
+    Basic Information (height, age etc.) will not be updated if already existing 
+    """  
+    
+    conDB = sqlite3.connect(dbName)
+    c = conDB.cursor()
+    
+    # Table for basic player information
+    c.execute('CREATE TABLE IF NOT EXISTS Player{}_{}(Player_ID INTEGER PRIMARY KEY, \
+                                                     FirstName TEXT, \
+                                                     LastName TEXT, \
+                                                     Team TEXT, \
+                                                     POS TEXT, \
+                                                     BackNum INT, \
+                                                     Mio REAL, \
+                                                     Born TEXT, \
+                                                     Height INT, \
+                                                     Weight INT, \
+                                                     Nationality TEXT)'.format(league,season[2:]))
+    
+    # Table for player performance per gameday
+    c.execute('CREATE TABLE IF NOT EXISTS PlayerStats{}_{}(UQID INT PRIMARY KEY, \
+                                                     Player_ID INT, \
+                                                     GameDay INT, \
+                                                     Goals INT, \
+                                                     Elfm TEXT, \
+                                                     Assists INT, \
+                                                     Scorer INT, \
+                                                     Red INT, \
+                                                     YelRed INT, \
+                                                     Yellow INT, \
+                                                     Change_In INT, \
+                                                     Change_Out INT, \
+                                                     Grade REAL)'.format(league,season[2:]))
+    
+    # URL where a list of all players is found
+    AllPlayersURL = 'http://manager.kicker.de/interactive/bundesliga/spielerliste/position/0/verein/0'
+    driver.get(AllPlayersURL)     
+    BLrankHTLM = driver.page_source
+    
+    # Define Parent element, use lxml parser
+    soup = BeautifulSoup(BLrankHTLM, "lxml")
+     
+    # Find the 'thead580' header 
+    entry = soup.find(class_="thead580")
+    
+    # find all links after thead580. If they contain 'spielerid', extract the ID and save to list
+    kickerIDlist = []
+    for elem in entry.findAllNext('a', attrs={'class':"link"}):
+        address = elem.get('href')
+        if address.find('spielerid') != -1:
+            kickerIDlist.append(address[address.find('spielerid')+10 : ])
+    
+    # write player_IDs from list into DB
+    for ID in kickerIDlist:
+        c.execute('INSERT OR IGNORE INTO Player{}_{} (Player_ID) VALUES ({})'.format(league,season[2:], ID))       
+    conDB.commit()  
+    
+    
+    # Acces each players stats site
+    for ID in kickerIDlist:
+        PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
+        driver.get(PlayerURL) 
+        BLrankHTLM = driver.page_source
+        soup = BeautifulSoup(BLrankHTLM, "lxml")
+        
+        
+        # Basic Info
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerVorname")
+        firstName = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerNachname")    
+        lastName = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblRueckenNr")
+        backNumber = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellePos")
+        position = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellerVerein")
+        team = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGeborenAm")
+        birthday = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGroeße")    
+        height = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGewicht")
+        weight = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblNation")
+        nation = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblMarktwert")
+        worth = entry.parent.parent.findNextSibling().text.strip()
+        worth = float( worth[:worth.find('Mio')-1].replace(',','.') )
+        
+        c.execute('UPDATE Player{}_{} SET FirstName="{}", \
+                                          LastName="{}", \
+                                          Team="{}", \
+                                          POS="{}", \
+                                          BackNum={}, \
+                                          Mio={}, \
+                                          Born="{}", \
+                                          Height={}, \
+                                          Weight={}, \
+                                          Nationality="{}" \
+                                    WHERE Player_ID ={} AND FirstName IS NULL'.format(league, season[2:], 
+        firstName, lastName, team, position, backNumber, worth, birthday, height, weight, nation, ID) )
+        conDB.commit()  
+        
+        
+        # Gameday related info
+        
+        entry = soup.find('table', attrs={'class':"tStat", 'summary':"spieler", 'width':"100%"})    
+        
+        for firstTag in entry.findChildren('td', attrs={'class':"first"}):
+            gameDay = firstTag.text
+            
+            goals = firstTag.findNext().text.replace("-","0")
+            
+            elfer = firstTag.findNext().findNext().text.replace('\xa0', "")
+            
+            assists = firstTag.findNext().findNext().findNext().text.replace("-","0")
+        
+            scorer = firstTag.findNext().findNext().findNext().findNext().text.replace("-","0")
+            scoretag = firstTag.findNext().findNext().findNext().findNext()
+    
+            red = scoretag.findNext().text.replace("-","0")
+            
+            yelred = scoretag.findNext().findNext().text.replace("-","0")
+            
+            yellow = scoretag.findNext().findNext().findNext().text.replace("-","0")
+            
+            gotIn = scoretag.findNext().findNext().findNext().findNext().text.replace("-","0")
+            
+            gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
+            gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
+            
+            grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')
+            
+            # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
+            # into another player ID by accident
+            UID = str(ID)+ "000" +str(gameDay)
+            
+            c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {})'.format(
+                                league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
+                                                    red, yelred, yellow, gotIn, gotOut, grade) )
+            conDB.commit()  
+    
+    driver.close()
+    conDB.commit()
+    conDB.close()
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+scrapePlayers(dbName,  season, league)
+   
+#scrapePoints(dbName,league,maxGD)
