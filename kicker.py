@@ -10,13 +10,13 @@ from selenium.webdriver.common.keys import Keys
 
 # define used season (starting year), used for naming within database
 season = '2015'
-league = '2'
+league = '1'
 
 # Last played GameDay
 maxGD = 29
 
 # Database filepath
-dbName = 'D:/Test/kicker_db/TEST.sqlite'
+dbName = 'D:/Test/kicker_db/kicker_main.sqlite'
 
 
 #############################
@@ -209,7 +209,6 @@ def scrapePoints(dbName,league,maxGD):
 def scrapePlayers(dbName, season, league):
     """
     scrapes the information of all available players, one table per season
-    Basic Information (height, age etc.) will not be updated if already existing 
     """  
     
     conDB = sqlite3.connect(dbName)
@@ -244,7 +243,10 @@ def scrapePlayers(dbName, season, league):
                                                      Grade REAL)'.format(league,season[2:]))
     
     # URL where a list of all players is found
-    AllPlayersURL = 'http://manager.kicker.de/interactive/bundesliga/spielerliste/position/0/verein/0'
+    if league == '1':
+        AllPlayersURL = 'http://manager.kicker.de/interactive/bundesliga/spielerliste/position/0/verein/0'
+    elif league == '2':
+        AllPlayersURL = 'http://manager.kicker.de/interactive/2bundesliga/spielerliste/position/0/verein/0'
     driver.get(AllPlayersURL)     
     BLrankHTLM = driver.page_source
     
@@ -269,7 +271,10 @@ def scrapePlayers(dbName, season, league):
     
     # Acces each players stats site
     for ID in kickerIDlist:
-        PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
+        if league == '1':
+            PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
+        elif league == '2':
+            PlayerURL = 'http://manager.kicker.de/interactive/2bundesliga/spieleranalyse/spielerid/{}'.format(ID)
         driver.get(PlayerURL) 
         BLrankHTLM = driver.page_source
         soup = BeautifulSoup(BLrankHTLM, "lxml")
@@ -350,7 +355,10 @@ def scrapePlayers(dbName, season, league):
             gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
             gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
             
-            grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')
+            grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')            
+            
+            result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
+            
             
             # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
             # into another player ID by accident
@@ -365,9 +373,7 @@ def scrapePlayers(dbName, season, league):
     conDB.commit()
     conDB.close()
     
-    
-    
-    
+
     
     
     
