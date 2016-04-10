@@ -98,6 +98,9 @@ LOS_Button.send_keys(Keys.ENTER)
 
 
 
+#############################
+#### ###  Functions  ## #####
+############################# 
 
 def scrapePoints(dbName,league,maxGD):
     """
@@ -281,102 +284,107 @@ def scrapePlayers(dbName, season, league):
         
         
         # Basic Info
+        try:
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerVorname")
+            firstName = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerNachname")    
+            lastName = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblRueckenNr")
+            backNumber = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellePos")
+            position = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellerVerein")
+            team = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGeborenAm")
+            birthday = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGroeße")    
+            height = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGewicht")
+            weight = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblNation")
+            nation = entry.parent.parent.findNextSibling().text.strip()
+            
+            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblMarktwert")
+            worth = entry.parent.parent.findNextSibling().text.strip()
+            worth = float( worth[:worth.find('Mio')-1].replace(',','.') )
+            
+            c.execute('UPDATE Player{}_{} SET FirstName="{}", \
+                                              LastName="{}", \
+                                              Team="{}", \
+                                              POS="{}", \
+                                              BackNum={}, \
+                                              Mio={}, \
+                                              Born="{}", \
+                                              Height={}, \
+                                              Weight={}, \
+                                              Nationality="{}" \
+                                        WHERE Player_ID ={} AND FirstName IS NULL'.format(league, season[2:], 
+            firstName, lastName, team, position, backNumber, worth, birthday, height, weight, nation, ID) )
+            conDB.commit()  
         
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerVorname")
-        firstName = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerNachname")    
-        lastName = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblRueckenNr")
-        backNumber = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellePos")
-        position = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellerVerein")
-        team = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGeborenAm")
-        birthday = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGroeße")    
-        height = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGewicht")
-        weight = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblNation")
-        nation = entry.parent.parent.findNextSibling().text.strip()
-        
-        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblMarktwert")
-        worth = entry.parent.parent.findNextSibling().text.strip()
-        worth = float( worth[:worth.find('Mio')-1].replace(',','.') )
-        
-        c.execute('UPDATE Player{}_{} SET FirstName="{}", \
-                                          LastName="{}", \
-                                          Team="{}", \
-                                          POS="{}", \
-                                          BackNum={}, \
-                                          Mio={}, \
-                                          Born="{}", \
-                                          Height={}, \
-                                          Weight={}, \
-                                          Nationality="{}" \
-                                    WHERE Player_ID ={} AND FirstName IS NULL'.format(league, season[2:], 
-        firstName, lastName, team, position, backNumber, worth, birthday, height, weight, nation, ID) )
-        conDB.commit()  
+        except:
+            continue
         
         
         # Gameday related info
         
-        entry = soup.find('table', attrs={'class':"tStat", 'summary':"spieler", 'width':"100%"})    
+        try:
+            entry = soup.find('table', attrs={'class':"tStat", 'summary':"spieler", 'width':"100%"})    
+            
+            for firstTag in entry.findChildren('td', attrs={'class':"first"}):
+                gameDay = firstTag.text
+                
+                goals = firstTag.findNext().text.replace("-","0")
+                
+                elfer = firstTag.findNext().findNext().text.replace('\xa0', "")
+                
+                assists = firstTag.findNext().findNext().findNext().text.replace("-","0")
+            
+                scorer = firstTag.findNext().findNext().findNext().findNext().text.replace("-","0")
+                scoretag = firstTag.findNext().findNext().findNext().findNext()
         
-        for firstTag in entry.findChildren('td', attrs={'class':"first"}):
-            gameDay = firstTag.text
+                red = scoretag.findNext().text.replace("-","0")
+                
+                yelred = scoretag.findNext().findNext().text.replace("-","0")
+                
+                yellow = scoretag.findNext().findNext().findNext().text.replace("-","0")
+                
+                gotIn = scoretag.findNext().findNext().findNext().findNext().text.replace("-","0")
+                
+                gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
+                gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
+                
+                grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')            
+                
+                result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
+                
+                
+                # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
+                # into another player ID by accident
+                UID = str(ID)+ "000" +str(gameDay)
+                
+                c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {})'.format(
+                                    league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
+                                                        red, yelred, yellow, gotIn, gotOut, grade) )
+                conDB.commit()  
             
-            goals = firstTag.findNext().text.replace("-","0")
-            
-            elfer = firstTag.findNext().findNext().text.replace('\xa0', "")
-            
-            assists = firstTag.findNext().findNext().findNext().text.replace("-","0")
-        
-            scorer = firstTag.findNext().findNext().findNext().findNext().text.replace("-","0")
-            scoretag = firstTag.findNext().findNext().findNext().findNext()
-    
-            red = scoretag.findNext().text.replace("-","0")
-            
-            yelred = scoretag.findNext().findNext().text.replace("-","0")
-            
-            yellow = scoretag.findNext().findNext().findNext().text.replace("-","0")
-            
-            gotIn = scoretag.findNext().findNext().findNext().findNext().text.replace("-","0")
-            
-            gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
-            gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
-            
-            grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')            
-            
-            result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
-            
-            
-            # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
-            # into another player ID by accident
-            UID = str(ID)+ "000" +str(gameDay)
-            
-            c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {})'.format(
-                                league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
-                                                    red, yelred, yellow, gotIn, gotOut, grade) )
-            conDB.commit()  
+        except:
+            continue
     
     driver.close()
     conDB.commit()
     conDB.close()
-    
+ 
 
-    
-    
-    
+
     
     
     
