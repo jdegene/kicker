@@ -8,9 +8,10 @@ import sqlite3
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 
-# define used season (starting year), used for naming within database
+
+# define used season (starting year), used for naming within database (no past season support)
 season = '2015'
-league = '2'
+league = '1'
 
 # Last played GameDay
 maxGD = 29
@@ -354,53 +355,52 @@ def scrapePlayers(dbName, season, league, update=1):
                                     WHERE Player_ID ={}'.format(*parseList) )
         conDB.commit()  
         
-        
-        
+                
         # Gameday related info
         
-        try:
-            entry = soup.find('table', attrs={'class':"tStat", 'summary':"spieler", 'width':"100%"})    
-            
-            # Each 'first' td tag is a gameday: if gameday was not played, no information is scraped
-            for firstTag in entry.findChildren('td', attrs={'class':"first"}):
-                gameDay = firstTag.text
-                
-                goals = firstTag.findNext().text.replace("-","0")
-                
-                elfer = firstTag.findNext().findNext().text.replace('\xa0', "")
-                
-                assists = firstTag.findNext().findNext().findNext().text.replace("-","0")
-            
-                scorer = firstTag.findNext().findNext().findNext().findNext().text.replace("-","0")
-                scoretag = firstTag.findNext().findNext().findNext().findNext()
+        #try:
+        entry = soup.find('table', attrs={'class':"tStat", 'summary':"spieler", 'width':"100%"})    
         
-                red = scoretag.findNext().text.replace("-","0")
-                
-                yelred = scoretag.findNext().findNext().text.replace("-","0")
-                
-                yellow = scoretag.findNext().findNext().findNext().text.replace("-","0")
-                
-                gotIn = scoretag.findNext().findNext().findNext().findNext().text.replace("-","0")
-                
-                gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
-                gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
-                
-                grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')            
-                
-                result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
-                
-                
-                # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
-                # into another player ID by accident
-                UID = str(ID)+ "000" +str(gameDay)
-                
-                c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {})'.format(
-                                    league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
-                                                        red, yelred, yellow, gotIn, gotOut, grade) )
-                conDB.commit()  
+        # Each 'first' td tag is a gameday: if gameday was not played, no information is scraped
+        for firstTag in entry.findChildren('td', attrs={'class':"first"}):
+            gameDay = firstTag.text
             
-        except:
-            continue
+            goals = firstTag.findNext().text.replace("-","0")
+            
+            elfer = firstTag.findNext().findNext().text.replace('\xa0', "")
+            
+            assists = firstTag.findNext().findNext().findNext().text.replace("-","0")
+        
+            scorer = firstTag.findNext().findNext().findNext().findNext().text.replace("-","0")
+            scoretag = firstTag.findNext().findNext().findNext().findNext()
+    
+            red = scoretag.findNext().text.replace("-","0")
+            
+            yelred = scoretag.findNext().findNext().text.replace("-","0")
+            
+            yellow = scoretag.findNext().findNext().findNext().text.replace("-","0")
+            
+            gotIn = scoretag.findNext().findNext().findNext().findNext().text.replace("-","0")
+            
+            gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
+            gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
+            
+            grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')            
+            
+            result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
+            
+            
+            # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
+            # into another player ID by accident
+            UID = str(ID)+ "000" +str(gameDay)
+            
+            c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {})'.format(
+                                league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
+                                                    red, yelred, yellow, gotIn, gotOut, grade) )
+            conDB.commit()  
+            
+        #except:
+            #continue
     
     driver.close()
     conDB.commit()
@@ -408,6 +408,10 @@ def scrapePlayers(dbName, season, league, update=1):
  
 
 
+def scrapeTeams(dbName, season, league):
+    """
+    Uses Mananger IDs from Manager table in DB to extract teams by 
+    """
     
     
     
