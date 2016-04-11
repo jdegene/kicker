@@ -11,10 +11,10 @@ from selenium.webdriver.common.keys import Keys
 
 # define used season (starting year), used for naming within database (no past season support)
 season = '2015'
-league = '2'
+league = '1'
 
 # Last played GameDay
-maxGD = 29
+maxGD = 28
 
 # Database filepath
 dbName = 'D:/Test/kicker_db/kicker_main.sqlite'
@@ -321,7 +321,7 @@ def scrapePlayers(dbName, season, league, update=1):
             PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
         elif league == '2':
             PlayerURL = 'http://manager.kicker.de/interactive/2bundesliga/spieleranalyse/spielerid/{}'.format(ID)
-        print(PlayerURL)
+        #print(PlayerURL)
         driver.get(PlayerURL) 
         BLrankHTLM = driver.page_source
         soup = BeautifulSoup(BLrankHTLM, "lxml")
@@ -440,6 +440,9 @@ def scrapeTactics(dbName, season, league, maxGD):
     scrapePoints() must be run before
     """
     
+    conDB = sqlite3.connect(dbName)
+    c = conDB.cursor()
+    
     # create a list of rowids (=identical to gameday) where flag for manager teams = 0
     zeroList = [x[0] for x in c.execute('SELECT rowid FROM KeepTrack WHERE Man{}_{}=0'.format(league,season[2:])).fetchall()]
     
@@ -451,8 +454,12 @@ def scrapeTactics(dbName, season, league, maxGD):
 
     
     for Spieltag in iterList:
-        for manID in  manIDList:
+        for manID in manIDList:
             
+            # check if Manager has points on respective gameday, if not continue with next manID
+            if c.execute('SELECT GD{} FROM BL{}_{} WHERE Manager_ID={}'.format(Spieltag,league,season[2:],manID)).fetchone()[0] == None:
+                continue
+           
             # Define URL for each Manager/league/Day combination
             if league == "1":
                 manURL = 'http://manager.kicker.de/interactive/bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
@@ -461,28 +468,57 @@ def scrapeTactics(dbName, season, league, maxGD):
             else:
                 'Only League 1 or 2 supported'
             
+            driver.get(manURL) 
+            BLrankHTLM = driver.page_source
+            soup = BeautifulSoup(BLrankHTLM, "lxml")
             
+            # Find the tag containing the ID for chosen tactic (0-4 see above)
+            entry = soup.find('form', attrs={'name':"PlayerForm"})
+            tacTag = entry.find('input', attrs={'id':'inptactic'})
+            tacID = tacTag.get('value')
+            
+            # Find the long string containing all Players in order
+            startStr = BLrankHTLM.find("""ovTeamPlayerElements = "{'players':""")
+            endStr = BLrankHTLM.find("\n", startStr)
+            longStr = BLrankHTLM[startStr:endStr]
+            
+            # search player ID, save to list, delete obolote first part of string, repeat
+            playerList = []
+            pos = 0
+            while pos != -1:
+                pos = longStr.find('splid')
+                first = pos + 8 # finds first digit of the ID
+                last = longStr.find("'", first) # look for next ' after pos
+                playerList.append(longStr[first:last])
+                longStr = longStr[last:]
+            
+            # remove empty entry from the back
+            addTuple = tuple([manID, Spieltag, tacID ] + [x for x in playerList if x != ''])
+            
+            # write everything to the DB
+            c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(addTuple) )
+            
+        # Update KeepTrack after successful scraping
+        c.execute('UPDATE KeepTrack SET Man{}_{}=1 WHERE rowid = "{}"'.format(league,season[2:],Spieltag) )
+    
+    driver.close()
+    conDB.commit()
+    conDB.close()
         
     
     
-    # Update KeepTrack after successful scraping
-    #c.execute('UPDATE KeepTrack SET Man{}_{}=1 WHERE rowid = "{}"'.format(league,season[2:],Spieltag)
+
     
     
     
     
     
-#scrapePlayers(dbName, season, league)
+
    
 #scrapePoints(dbName,league,maxGD)
-   
-   
-   
-   
-   
-   
-   
-   
+scrapeTactics(dbName, season, league, maxGD)
+ 
+#scrapePlayers(dbName, season, league)
    
    
    
