@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import os, sys
+import os, sys, re
 
 from bs4 import BeautifulSoup
 import sqlite3
@@ -10,7 +10,7 @@ from selenium.webdriver.common.keys import Keys
 
 # define used season (starting year), used for naming within database
 season = '2015'
-league = '1'
+league = '2'
 
 # Last played GameDay
 maxGD = 29
@@ -209,9 +209,15 @@ def scrapePoints(dbName,league,maxGD):
 
 
    
-def scrapePlayers(dbName, season, league):
+def scrapePlayers(dbName, season, league, update=1):
     """
     scrapes the information of all available players, one table per season
+    First scrapes over the site containing all players, extracting Player ID's
+     then uses the IDs to get all other data from the Player site
+    
+     :update: is a flag, that determines if all players should be scraped from scratch (0)
+        or if only those with missing names but existing IDs are tried to be fetched (again) (1)
+        1 = default
     """  
     
     conDB = sqlite3.connect(dbName)
@@ -245,6 +251,8 @@ def scrapePlayers(dbName, season, league):
                                                      Change_Out INT, \
                                                      Grade REAL)'.format(league,season[2:]))
     
+    
+    
     # URL where a list of all players is found
     if league == '1':
         AllPlayersURL = 'http://manager.kicker.de/interactive/bundesliga/spielerliste/position/0/verein/0'
@@ -261,16 +269,25 @@ def scrapePlayers(dbName, season, league):
     
     # find all links after thead580. If they contain 'spielerid', extract the ID and save to list
     kickerIDlist = []
-    for elem in entry.findAllNext('a', attrs={'class':"link"}):
-        address = elem.get('href')
-        if address.find('spielerid') != -1:
-            kickerIDlist.append(address[address.find('spielerid')+10 : ])
+    if update == 0:
+        for elem in entry.findAllNext('a', attrs={'class':"link"}):
+            address = elem.get('href')
+            if address.find('spielerid') != -1:
+                kickerIDlist.append(address[address.find('spielerid')+10 : ])
+        
+        # write player_IDs from list into DB
+        for ID in kickerIDlist:
+            c.execute('INSERT OR IGNORE INTO Player{}_{} (Player_ID) VALUES ({})'.format(league,season[2:], ID))       
+        conDB.commit()  
     
-    # write player_IDs from list into DB
-    for ID in kickerIDlist:
-        c.execute('INSERT OR IGNORE INTO Player{}_{} (Player_ID) VALUES ({})'.format(league,season[2:], ID))       
-    conDB.commit()  
+    # for updates, Player Table is searched for missing FirstNames and exisiting IDs
+    elif update == 1:
+        for x in c.execute('SELECT Player_ID FROM Player{}_{} WHERE FirstName IS NULL'.format(league,season[2:])).fetchall():
+           kickerIDlist.append(str(x[0]))
     
+    else:
+        print('Update must be 0 or 1')
+       
     
     # Acces each players stats site
     for ID in kickerIDlist:
@@ -278,60 +295,65 @@ def scrapePlayers(dbName, season, league):
             PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
         elif league == '2':
             PlayerURL = 'http://manager.kicker.de/interactive/2bundesliga/spieleranalyse/spielerid/{}'.format(ID)
+        print(PlayerURL)
         driver.get(PlayerURL) 
         BLrankHTLM = driver.page_source
         soup = BeautifulSoup(BLrankHTLM, "lxml")
         
         
         # Basic Info
-        try:
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerVorname")
-            firstName = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerNachname")    
-            lastName = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblRueckenNr")
-            backNumber = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellePos")
-            position = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellerVerein")
-            team = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGeborenAm")
-            birthday = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGroeße")    
-            height = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGewicht")
-            weight = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblNation")
-            nation = entry.parent.parent.findNextSibling().text.strip()
-            
-            entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblMarktwert")
-            worth = entry.parent.parent.findNextSibling().text.strip()
-            worth = float( worth[:worth.find('Mio')-1].replace(',','.') )
-            
-            c.execute('UPDATE Player{}_{} SET FirstName="{}", \
-                                              LastName="{}", \
-                                              Team="{}", \
-                                              POS="{}", \
-                                              BackNum={}, \
-                                              Mio={}, \
-                                              Born="{}", \
-                                              Height={}, \
-                                              Weight={}, \
-                                              Nationality="{}" \
-                                        WHERE Player_ID ={} AND FirstName IS NULL'.format(league, season[2:], 
-            firstName, lastName, team, position, backNumber, worth, birthday, height, weight, nation, ID) )
-            conDB.commit()  
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerVorname")
+        firstName = entry.parent.parent.findNextSibling().text.strip()
         
-        except:
-            continue
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerNachname")    
+        lastName = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblRueckenNr")
+        backNumber = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellePos")
+        position = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellerVerein")
+        team = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGeborenAm")
+        birthday = entry.parent.parent.findNextSibling().text.strip()
+        
+        # the following uses a wildcard, as german ß is used, throwing errors for some players
+        entry = soup.find(id=re.compile("ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGroe*e"))    
+        height = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGewicht")
+        weight = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblNation")
+        nation = entry.parent.parent.findNextSibling().text.strip()
+        
+        entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblMarktwert")
+        worth = entry.parent.parent.findNextSibling().text.strip()
+        worth = float( worth[:worth.find('Mio')-1].replace(',','.') )
+        
+        # put all into a list, check first if no variable is empty, if empty change to " "
+        # otherwise SQL error is raised
+        parseList = (league, season[2:], firstName, lastName, team, position, backNumber, 
+                     worth, birthday, height, weight, nation, ID)
+        parseList = [x if x != '' else '\" \"' for x in parseList]
+   
+        
+        c.execute('UPDATE Player{}_{} SET FirstName="{}", \
+                                          LastName="{}", \
+                                          Team="{}", \
+                                          POS="{}", \
+                                          BackNum={}, \
+                                          Mio={}, \
+                                          Born="{}", \
+                                          Height={}, \
+                                          Weight={}, \
+                                          Nationality="{}" \
+                                    WHERE Player_ID ={}'.format(*parseList) )
+        conDB.commit()  
+        
         
         
         # Gameday related info
@@ -339,6 +361,7 @@ def scrapePlayers(dbName, season, league):
         try:
             entry = soup.find('table', attrs={'class':"tStat", 'summary':"spieler", 'width':"100%"})    
             
+            # Each 'first' td tag is a gameday: if gameday was not played, no information is scraped
             for firstTag in entry.findChildren('td', attrs={'class':"first"}):
                 gameDay = firstTag.text
                 
@@ -388,6 +411,6 @@ def scrapePlayers(dbName, season, league):
     
     
     
-scrapePlayers(dbName,  season, league)
+scrapePlayers(dbName, season, league)
    
 #scrapePoints(dbName,league,maxGD)
