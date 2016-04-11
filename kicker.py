@@ -43,11 +43,13 @@ if dbExists == 0:
     
     # create table KeepTrack that keeps track of processed data using single digits
     # (0 = not processed, 1 = finished, 2 = started but not finished)
-    # columns are League/Seasons; rows are Gamedays
+    # columns are League/Seasons and Manager League/season for each GD Manager team of choice
+    # rows are Gamedays
     try:
         c.execute('CREATE TABLE KeepTrack (GameDay TEXT, BL1_{0} INTEGER, BL2_{0} INTEGER)'.format(season[2:]))
         for rowName in ['GD' + str(n) for n in range(1,35)]:
-            c.execute('INSERT OR IGNORE INTO KeepTrack (GameDay, BL1_{0}, BL2_{0}) VALUES ("{1}","0","0")'.format(season[2:],rowName))
+            c.execute('INSERT OR IGNORE INTO KeepTrack (GameDay, BL1_{0}, BL2_{0}, Man1_{0}, Man2_{0}) \
+                        VALUES ("{1}","0","0","0","0")'.format(season[2:],rowName))
     except:
         pass
     
@@ -62,9 +64,32 @@ if dbExists == 0:
         for i in range(1,3):
             pointTblName = 'BL' + str(i) + "_" + season[2:]
             for colName in ['GD' + str(n) for n in range(1,35)]:
-                c.execute('ALTER TABLE %s ADD COLUMN %s INTEGER' % (pointTblName, colName) )
+                c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(pointTblName, colName) )
     except:
         pass
+    
+    # Table to store each game day, for each manager, with tactics and all players
+    # populated by scrapeTactics()
+    # Tactic IDs translate to: 0 =3-5-2,  =4-5-1,  2 =4-4-2,  3 =4-3-3,  4 =3-4-3
+    # First players in each group are actually playing
+    # eg: Tactic ID = 3 -> Scorers have 3 Players -> SC1, SC2, SC3 were playing, 
+    #  SC4 and SC5 are on the bench
+    try:
+        for i in range(1,3):
+            tacTblName = 'Tactics' + str(i) + "_" + season[2:]
+            c.execute('CREATE TABLE IF NOT EXISTS ' + tacTblName + ' (Manager_ID INT, GameDay INT, TacID INT, PRIMARY KEY (Manager_ID, GameDay))')
+            for colName in ['Goal' + str(n) for n in range(1,4)]: # 3 Goalies
+                c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(tacTblName, colName) )
+            for colName in ['Defn' + str(n) for n in range(1,7)]: # 6 Defenders
+                c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(tacTblName, colName) )
+            for colName in ['Midf' + str(n) for n in range(1,9)]: # 8 Midfielders
+                c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(tacTblName, colName) )
+            for colName in ['Scor' + str(n) for n in range(1,6)]: # 5 Scorer
+                c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(tacTblName, colName) )
+                
+    except:
+        pass
+
 
 conDB.commit()
 conDB.close()
@@ -129,7 +154,7 @@ def scrapePoints(dbName,league,maxGD):
             print("Skipping GameDay {}: already existing".format(Spieltag))
             continue        
         
-        for counter in range(1,32,30):
+        for counter in range(1,2000000,30):
             try:  
                 if league == '1':                    
                     # switch URL between ...ive/bundesliga/mein... and ...ive/2bundesliga/mein... for resp. league
@@ -408,13 +433,69 @@ def scrapePlayers(dbName, season, league, update=1):
  
 
 
-def scrapeTeams(dbName, season, league):
+
+def scrapeTactics(dbName, season, league, maxGD):
     """
     Uses Mananger IDs from Manager table in DB to extract teams by 
+    scrapePoints() must be run before
     """
     
+    # create a list of rowids (=identical to gameday) where flag for manager teams = 0
+    zeroList = [x[0] for x in c.execute('SELECT rowid FROM KeepTrack WHERE Man{}_{}=0'.format(league,season[2:])).fetchall()]
+    
+    # new list of zeroList reduced by all numbers > maxGD, results in all valid undone gameDays
+    iterList = [x for x in zeroList if int(x)<=maxGD]
+    
+    # get List of all Managers if points have been scraped this season
+    manIDList = [x[0] for x in c.execute('SELECT Manager_ID FROM BL{}_{}'.format(league,season[2:])).fetchall()]
+
+    
+    for Spieltag in iterList:
+        for manID in  manIDList:
+            
+            # Define URL for each Manager/league/Day combination
+            if league == "1":
+                manURL = 'http://manager.kicker.de/interactive/bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
+            elif league == "2":
+                manURL = 'http://manager.kicker.de/interactive/2bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
+            else:
+                'Only League 1 or 2 supported'
+            
+            
+        
     
     
-scrapePlayers(dbName, season, league)
+    # Update KeepTrack after successful scraping
+    #c.execute('UPDATE KeepTrack SET Man{}_{}=1 WHERE rowid = "{}"'.format(league,season[2:],Spieltag)
+    
+    
+    
+    
+    
+#scrapePlayers(dbName, season, league)
    
 #scrapePoints(dbName,league,maxGD)
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
+   
