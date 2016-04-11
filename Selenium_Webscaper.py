@@ -75,7 +75,7 @@ for Spieltag in range(1,29):
                 continue
 
 
-
+driver.close()
   
 ## 2. Bundesliga      
 #for Spieltag in range(1,28):
@@ -107,7 +107,7 @@ for Spieltag in range(1,29):
 #            print("different exception")
 
 
-driver.close()
+
 
 #for files in os.listdir('D:/Test/kicker/'):
 #    shutil.copyfile('D:/Test/kicker/'+ files, 'P:/Kicker/' + files)

@@ -10,7 +10,7 @@ from selenium.webdriver.common.keys import Keys
 
 # define used season (starting year), used for naming within database
 season = '2015'
-league = '1'
+league = '2'
 
 # Last played GameDay
 maxGD = 29
