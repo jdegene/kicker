@@ -245,7 +245,7 @@ def scrapePlayers(dbName, season, league, update=1):
         or if only those with missing names but existing IDs are tried to be fetched (again) (1)
         1 = default
     """  
-    
+
     conDB = sqlite3.connect(dbName)
     c = conDB.cursor()
     
@@ -442,6 +442,9 @@ def scrapeTactics(dbName, season, league, maxGD):
     If gameday was not finished: will pick up unfinished Managers during gameday
     """
     
+    # Overwrite dbname, should be off by default
+    dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
+    
     conDB = sqlite3.connect(dbName)
     c = conDB.cursor()
     
@@ -449,6 +452,9 @@ def scrapeTactics(dbName, season, league, maxGD):
     zeroList = [x[0] for x in c.execute('SELECT rowid FROM KeepTrack WHERE Man{}_{}=0'.format(league,season[2:])).fetchall()]
     # new list of zeroList reduced by all numbers > maxGD, results in all valid undone gameDays
     iterList = [x for x in zeroList if int(x)<=maxGD]
+    
+    # Use this to force one certain Spieltag, , should be off by default
+    iterList = [22]
 
     
     for Spieltag in iterList:
@@ -477,10 +483,15 @@ def scrapeTactics(dbName, season, league, maxGD):
             BLrankHTLM = driver.page_source
             soup = BeautifulSoup(BLrankHTLM, "lxml")
             
-            # Find the tag containing the ID for chosen tactic (0-4 see above)
-            entry = soup.find('form', attrs={'name':"PlayerForm"})
-            tacTag = entry.find('input', attrs={'id':'inptactic'})
-            tacID = tacTag.get('value')
+            # put in try/except, as sometime empty pages are scraped?! 
+            try:
+                # Find the tag containing the ID for chosen tactic (0-4 see above)
+                entry = soup.find('form', attrs={'name':"PlayerForm"})
+                tacTag = entry.find('input', attrs={'id':'inptactic'})
+                tacID = tacTag.get('value')
+            except:
+                print(manID, len(BLrankHTLM))
+                continue
             
             # Find the long string containing all Players in order
             startStr = BLrankHTLM.find("""ovTeamPlayerElements = "{'players':""")
@@ -523,7 +534,7 @@ def scrapeTactics(dbName, season, league, maxGD):
 
    
 #scrapePoints(dbName,league,maxGD)
-scrapeTactics(dbName, season, league, maxGD)
+x = scrapeTactics(dbName, season, league, maxGD)
  
 #scrapePlayers(dbName, season, league)
    
