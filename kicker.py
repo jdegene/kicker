@@ -450,7 +450,7 @@ def scrapePlayers(dbName, season, league, update=1):
 ################### Tactics Page Scraping  ##############################################
 #########################################################################################
 #
-def runIterList(cur_window_handle,iterManList, c2, Spieltag, season, league):
+def runIterList(cur_window_handle,iterManList, Spieltag, season, league):
     """
     executes the calling and scraping of a single page, is called by scrapeTacticsMult()
      
@@ -462,30 +462,16 @@ def runIterList(cur_window_handle,iterManList, c2, Spieltag, season, league):
      league : current league
     
     """
-    # executes the calling and scraping of a single page
+    
+    # list that will store each line and is returned -> DB write is outside of this func
+    resList = []
+    
+    #w = open("D:/Test/kicker_db/" + cur_window_handle +".txt", 'w')
 
     driver.switch_to_window(cur_window_handle)
-    
-    print(c2)
 
     for manID in iterManList:   
-        
-        print(manID)
-        
-        # check if Manager has points on respective gameday, if not continue with next manID
-        try:
-            if c2.execute('SELECT GD{} FROM BL{}_{} WHERE Manager_ID={}'.format(Spieltag,league,season[2:],manID)).fetchone()[0] == None:
-                print("This")
-                continue
-        except:
-                exc_type, exc_obj, exc_tb = sys.exc_info()
-                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
-                print(exc_type, fname, exc_tb.tb_lineno)
-                print(sys.exc_info())
-                break
-            
-        
-        
+      
         # Define URL for each Manager/league/Day combination
         if league == '1':
             manURL = 'http://manager.kicker.de/interactive/bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
@@ -493,9 +479,7 @@ def runIterList(cur_window_handle,iterManList, c2, Spieltag, season, league):
             manURL = 'http://manager.kicker.de/interactive/2bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
         else:
             print('Only League 1 or 2 supported')
-            
-        print(manURL)
-        
+                    
         driver.get(manURL) 
         BLrankHTLM = driver.page_source
         soup = BeautifulSoup(BLrankHTLM, "lxml")
@@ -527,18 +511,14 @@ def runIterList(cur_window_handle,iterManList, c2, Spieltag, season, league):
         
         # remove empty entry from the back
         addTuple = tuple([manID, Spieltag, tacID ] + [x for x in playerList if x != ''])
-        print(len(addTuple))
         
-        # write everything to the DB
-        c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(addTuple) )
-        #print(Spieltag, manID, "done")
-        conDB.commit()
-        
-    # Update KeepTrack after successful scraping
-    c.execute('UPDATE KeepTrack SET Man{}_{}=1 WHERE rowid = "{}"'.format(league,season[2:],Spieltag) )
+        resList.append(addTuple)
+        #w.write(str(addTuple))
+
     
     #driver.close()
-    conDB.commit()
+    #w.close()
+    return (resList)
     
     
     
@@ -557,9 +537,7 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     
     # Overwrite dbname, should be off by default
     #dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
-    
-    print("Start function with dbName=", dbName, " season=", season, " league=", league, " Spieltag=", Spieltag)
-   
+      
     conDB = sqlite3.connect(dbName)
     c = conDB.cursor()
     
@@ -581,27 +559,49 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
     iterManList = list(set(manIDList) - set(manReduceList))
     #iterManList = [x for x in manIDList if x not in manReduceList] # This takes forever for a large number of values
-  
+    
+    iterManList = iterManList[:1000]    
+    
     # split list into 5 equal sized parts, last parts length may be shorter 
-    n = int(len(iterManList)/5)
+    n = int(len(iterManList)/10)
     iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
     print("iterManSubList created with ", len(iterManList), " entries")
+    
+
 
     # open 5 new windows wth unique windows IDs    
-    for x in range(5):
+    for x in range(10):
         driver.execute_script("$(window.open())")
     #driver.current_window_handle #get current window handle
     #driver.window_handles #get a list of all current handles
     #driver.switch_to_window(driver.window_handles[-1]) # switch to last opened window
     
     with cf.ThreadPoolExecutor(max_workers=2) as e:
-        e.submit(runIterList, driver.window_handles[1], iterManSubList[1],c, Spieltag, season, league)
-        e.submit(runIterList, driver.window_handles[2], iterManSubList[2],c, Spieltag, season, league)
+        x = e.submit(runIterList, driver.window_handles[1], iterManSubList[0], Spieltag, season, league)
+        x2 = e.submit(runIterList, driver.window_handles[2], iterManSubList[1], Spieltag, season, league)
+        x3 = e.submit(runIterList, driver.window_handles[3], iterManSubList[2], Spieltag, season, league)
+        x4 = e.submit(runIterList, driver.window_handles[4], iterManSubList[3], Spieltag, season, league)
+        x5 = e.submit(runIterList, driver.window_handles[5], iterManSubList[4], Spieltag, season, league)
+        
+        x6 = e.submit(runIterList, driver.window_handles[6], iterManSubList[5], Spieltag, season, league)
+        x7 = e.submit(runIterList, driver.window_handles[7], iterManSubList[6], Spieltag, season, league)
+        x8 = e.submit(runIterList, driver.window_handles[8], iterManSubList[7], Spieltag, season, league)
+        x9 = e.submit(runIterList, driver.window_handles[9], iterManSubList[8], Spieltag, season, league)
+        x10 = e.submit(runIterList, driver.window_handles[10], iterManSubList[9], Spieltag, season, league)
+        
+
+    for w in (x.result(),x2.result(),x3.result(),x4.result(),x5.result(),
+              x6.result(),x7.result(),x8.result(),x9.result(),x10.result()):
+        # write each output line-by-line to the DB
+        for line in w:
+            c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(line) )
+            #print(Spieltag, manID, "done")
+        conDB.commit()
 
     
     #conDB.close()
 
-
+#scrapeTacticsMult(dbName, season, league,Spieltag=1)    
 
 
 # single execution
@@ -745,7 +745,7 @@ def mergeDBs(mainDB, secDB, tblName):
 
   
 
-scrapeTacticsMult(dbName, season, league,Spieltag=1)    
+#scrapeTacticsMult(dbName, season, league,Spieltag=1)    
 
   
   
