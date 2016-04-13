@@ -8,6 +8,8 @@ import sqlite3
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 
+import concurrent.futures as cf
+
 
 # define used season (starting year), used for naming within database (no past season support)
 season = '2015'
@@ -99,6 +101,7 @@ conDB.close()
 ## ###  Website Login  ## ###
 ############################# 
 
+
 loginURL = "http://www.kicker.de/games/interactive/startseite/gamesstartseite.html"
 
 # Username and PW read from separate file (first and second line)
@@ -127,6 +130,10 @@ LOS_Button.send_keys(Keys.ENTER)
 #############################
 #### ###  Functions  ## #####
 ############################# 
+
+#########################################################################################
+################### Manager Points Scraping  ############################################
+#########################################################################################
 
 def scrapePoints(dbName,league,maxGD):
     """
@@ -230,8 +237,14 @@ def scrapePoints(dbName,league,maxGD):
     driver.close()
     conDB.commit()
     conDB.close()
- 
 
+
+
+
+ 
+#########################################################################################
+#################### Player Info Scraping  ##############################################
+#########################################################################################
 
 
    
@@ -430,10 +443,142 @@ def scrapePlayers(dbName, season, league, update=1):
     driver.close()
     conDB.commit()
     conDB.close()
- 
 
 
 
+#########################################################################################
+################### Tactics Page Scraping  ##############################################
+#########################################################################################
+#
+def runIterList(cur_window_handle,iterManList, Spieltag):
+    # executes the calling and scraping of a single page
+
+    driver.switch_to_window(cur_window_handle)
+    
+    print("Window opened with ID", cur_window_handle)
+    
+
+        
+    for manID in iterManList:
+        
+        # check if Manager has points on respective gameday, if not continue with next manID
+        if c.execute('SELECT GD{} FROM BL{}_{} WHERE Manager_ID={}'.format(Spieltag,league,season[2:],manID)).fetchone()[0] == None:
+            continue
+       
+        # Define URL for each Manager/league/Day combination
+        if league == '1':
+            manURL = 'http://manager.kicker.de/interactive/bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
+        elif league == '2':
+            manURL = 'http://manager.kicker.de/interactive/2bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
+        else:
+            'Only League 1 or 2 supported'
+        
+        driver.get(manURL) 
+        BLrankHTLM = driver.page_source
+        soup = BeautifulSoup(BLrankHTLM, "lxml")
+        
+        # put in try/except, as sometime empty pages are scraped?! 
+        try:
+            # Find the tag containing the ID for chosen tactic (0-4 see above)
+            entry = soup.find('form', attrs={'name':"PlayerForm"})
+            tacTag = entry.find('input', attrs={'id':'inptactic'})
+            tacID = tacTag.get('value')
+        except:
+            print(manID, len(BLrankHTLM))
+            continue
+        
+        # Find the long string containing all Players in order
+        startStr = BLrankHTLM.find("""ovTeamPlayerElements = "{'players':""")
+        endStr = BLrankHTLM.find("\n", startStr)
+        longStr = BLrankHTLM[startStr:endStr]
+        
+        # search player ID, save to list, delete obolote first part of string, repeat
+        playerList = []
+        pos = 0
+        while pos != -1:
+            pos = longStr.find('splid')
+            first = pos + 8 # finds first digit of the ID
+            last = longStr.find("'", first) # look for next ' after pos
+            playerList.append(longStr[first:last])
+            longStr = longStr[last:]
+        
+        # remove empty entry from the back
+        addTuple = tuple([manID, Spieltag, tacID ] + [x for x in playerList if x != ''])
+        
+        # write everything to the DB
+        c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(addTuple) )
+        #print(Spieltag, manID, "done")
+        conDB.commit()
+        
+    # Update KeepTrack after successful scraping
+    c.execute('UPDATE KeepTrack SET Man{}_{}=1 WHERE rowid = "{}"'.format(league,season[2:],Spieltag) )
+    
+    driver.close()
+    conDB.commit()
+    
+    
+    
+    
+
+def scrapeTacticsMult(dbName, season, league, Spieltag=0):
+    """
+    executes several PhantomJS calls in parallel for speedup, all calls write into
+    the same DB
+    
+    Uses Mananger IDs from Manager table in DB to extract teams by 
+    scrapePoints() must be run before for each GD
+    
+    If gameday was not finished: will pick up unfinished Managers during gameday
+    """
+    
+    # Overwrite dbname, should be off by default
+    #dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
+    
+    print("Start function with dbName=", dbName, " season=", season, " league=", league, " Spieltag=", Spieltag)
+   
+    conDB = sqlite3.connect(dbName)
+    c = conDB.cursor()
+    
+#    # create a list of rowids (=identical to gameday) where flag for manager teams = 0
+#    zeroList = [x[0] for x in c.execute('SELECT rowid FROM KeepTrack WHERE Man{}_{}=0'.format(league,season[2:])).fetchall()]
+#    # new list of zeroList reduced by all numbers > maxGD, results in all valid undone gameDays
+#    iterList = [x for x in zeroList if int(x)<=maxGD]
+#    
+#    # Use this to force one certain Spieltag, should be off by default
+#    iterList = [1]
+    
+    # if no Spieltag is given, use Spieltag 1
+    if Spieltag==0:
+        Spieltag = 1
+    
+    # get List of all Managers if points have been scraped this season
+    manIDList = [x[0] for x in c.execute('SELECT Manager_ID FROM BL{}_{}'.format(league,season[2:])).fetchall()]
+    # reduce list by already exisiting entries -> no double scraping
+    manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
+    iterManList = list(set(manIDList) - set(manReduceList))
+    #iterManList = [x for x in manIDList if x not in manReduceList] # This takes forever for a large number of values
+  
+    # split list into 5 equal sized parts, last parts length may be shorter 
+    n = int(len(iterManList)/5)
+    iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
+    print("iterManSubList created with ", len(iterManList), " entries")
+
+    # open 5 new windows wth unique windows IDs    
+    for x in range(5):
+        driver.execute_script("$(window.open())")
+    #driver.current_window_handle #get current window handle
+    #driver.window_handles #get a list of all current handles
+    #driver.switch_to_window(driver.window_handles[-1]) # switch to last opened window
+    
+    with cf.ThreadPoolExecutor(max_workers=2) as e:
+        e.submit(runIterList, driver.window_handles[1], iterManSubList[1], Spieltag)
+        e.submit(runIterList, driver.window_handles[2], iterManSubList[2], Spieltag)
+
+    
+    #conDB.close()
+
+
+# single execution
 def scrapeTactics(dbName, season, league, maxGD):
     """
     Uses Mananger IDs from Manager table in DB to extract teams by 
@@ -453,8 +598,9 @@ def scrapeTactics(dbName, season, league, maxGD):
     # new list of zeroList reduced by all numbers > maxGD, results in all valid undone gameDays
     iterList = [x for x in zeroList if int(x)<=maxGD]
     
-    # Use this to force one certain Spieltag, , should be off by default
+    # Use this to force one certain Spieltag, should be off by default
     #iterList = [22]
+    
 
     
     for Spieltag in iterList:
@@ -464,6 +610,10 @@ def scrapeTactics(dbName, season, league, maxGD):
         # reduce list by already exisiting entries -> no double scraping
         manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
         iterManList = [x for x in manIDList if x not in manReduceList] 
+        
+        # split list into 5 equal sized parts, last parts length may be shorter (test case)
+        #n = int(len(iterManList)/5)
+        #iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
         
         for manID in iterManList:
             
@@ -523,18 +673,58 @@ def scrapeTactics(dbName, season, league, maxGD):
     conDB.commit()
     conDB.close()
         
-    
-    
 
-    
-    
-    
-    
-    
+
+
+
+#########################################################################################
+############################# DB Scripts  ###############################################
+#########################################################################################    
+
 
    
+def mergeDBs(mainDB, secDB, tblName):
+    """
+    merges a table from a second DB into a main DB
+    
+        :mainDB:  str path to the main DB, this is the DB that will be kept
+        :secDB:   str path to the secondary DB, this could be deleted afterwards
+        :tblName: str table name in both DBs, must be identical
+    """
+    
+    conDB = sqlite3.connect(mainDB)
+    c = conDB.cursor()
+    
+    c.execute("ATTACH DATABASE ? AS secondDB", (secDB,) )
+    
+    myQuery = c.execute("SELECT * FROM secondDB.{}".format(tblName)).fetchall()
+    
+    for x in myQuery:
+        try:
+            c.execute("INSERT OR IGNORE INTO main.{} VALUES {}".format(tblName, x))
+        except:
+            pass
+  
+    conDB.commit()
+    c.execute( "DETACH DATABASE secondDB" )    
+    conDB.close()
+    
+
+    
+#########################################################################################
+    
+#########################################################################################
+######################### Function Calls  ###############################################
+######################################################################################### 
+
+  
+
+scrapeTacticsMult(dbName, season, league,Spieltag=1)    
+
+  
+  
 #scrapePoints(dbName,league,maxGD)
-scrapeTactics(dbName, season, league, maxGD)
+#scrapeTactics(dbName, season, league, maxGD)
  
 #scrapePlayers(dbName, season, league)
    
