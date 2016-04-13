@@ -443,7 +443,7 @@ def scrapeTactics(dbName, season, league, maxGD):
     """
     
     # Overwrite dbname, should be off by default
-    dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
+    #dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
     
     conDB = sqlite3.connect(dbName)
     c = conDB.cursor()
@@ -454,7 +454,7 @@ def scrapeTactics(dbName, season, league, maxGD):
     iterList = [x for x in zeroList if int(x)<=maxGD]
     
     # Use this to force one certain Spieltag, , should be off by default
-    iterList = [22]
+    #iterList = [22]
 
     
     for Spieltag in iterList:
@@ -534,7 +534,7 @@ def scrapeTactics(dbName, season, league, maxGD):
 
    
 #scrapePoints(dbName,league,maxGD)
-x = scrapeTactics(dbName, season, league, maxGD)
+scrapeTactics(dbName, season, league, maxGD)
  
 #scrapePlayers(dbName, season, league)
    
