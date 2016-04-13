@@ -450,28 +450,51 @@ def scrapePlayers(dbName, season, league, update=1):
 ################### Tactics Page Scraping  ##############################################
 #########################################################################################
 #
-def runIterList(cur_window_handle,iterManList, Spieltag):
+def runIterList(cur_window_handle,iterManList, c2, Spieltag, season, league):
+    """
+    executes the calling and scraping of a single page, is called by scrapeTacticsMult()
+     
+     cur_window_handle : a unique window handle ID for PhantomJS
+     iterManList : the list of all Manager IDs this function should plow through
+     c : the database pointer
+     Spieltag : the one gameday
+     season : current season
+     league : current league
+    
+    """
     # executes the calling and scraping of a single page
 
     driver.switch_to_window(cur_window_handle)
     
-    print("Window opened with ID", cur_window_handle)
-    
+    print(c2)
 
+    for manID in iterManList:   
         
-    for manID in iterManList:
+        print(manID)
         
         # check if Manager has points on respective gameday, if not continue with next manID
-        if c.execute('SELECT GD{} FROM BL{}_{} WHERE Manager_ID={}'.format(Spieltag,league,season[2:],manID)).fetchone()[0] == None:
-            continue
-       
+        try:
+            if c2.execute('SELECT GD{} FROM BL{}_{} WHERE Manager_ID={}'.format(Spieltag,league,season[2:],manID)).fetchone()[0] == None:
+                print("This")
+                continue
+        except:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                print(exc_type, fname, exc_tb.tb_lineno)
+                print(sys.exc_info())
+                break
+            
+        
+        
         # Define URL for each Manager/league/Day combination
         if league == '1':
             manURL = 'http://manager.kicker.de/interactive/bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
         elif league == '2':
             manURL = 'http://manager.kicker.de/interactive/2bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
         else:
-            'Only League 1 or 2 supported'
+            print('Only League 1 or 2 supported')
+            
+        print(manURL)
         
         driver.get(manURL) 
         BLrankHTLM = driver.page_source
@@ -504,6 +527,7 @@ def runIterList(cur_window_handle,iterManList, Spieltag):
         
         # remove empty entry from the back
         addTuple = tuple([manID, Spieltag, tacID ] + [x for x in playerList if x != ''])
+        print(len(addTuple))
         
         # write everything to the DB
         c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(addTuple) )
@@ -513,7 +537,7 @@ def runIterList(cur_window_handle,iterManList, Spieltag):
     # Update KeepTrack after successful scraping
     c.execute('UPDATE KeepTrack SET Man{}_{}=1 WHERE rowid = "{}"'.format(league,season[2:],Spieltag) )
     
-    driver.close()
+    #driver.close()
     conDB.commit()
     
     
@@ -571,11 +595,13 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     #driver.switch_to_window(driver.window_handles[-1]) # switch to last opened window
     
     with cf.ThreadPoolExecutor(max_workers=2) as e:
-        e.submit(runIterList, driver.window_handles[1], iterManSubList[1], Spieltag)
-        e.submit(runIterList, driver.window_handles[2], iterManSubList[2], Spieltag)
+        e.submit(runIterList, driver.window_handles[1], iterManSubList[1],c, Spieltag, season, league)
+        e.submit(runIterList, driver.window_handles[2], iterManSubList[2],c, Spieltag, season, league)
 
     
     #conDB.close()
+
+
 
 
 # single execution
