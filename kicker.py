@@ -595,10 +595,14 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     
         for w in (x.result(),x2.result(),x3.result(),x4.result(),x5.result(),
                   x6.result(),x7.result(),x8.result(),x9.result(),x10.result()):
+            
+            
             # write each output line-by-line to the DB
             for line in w:
-                c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(line) )
-                #print(Spieltag, manID, "done")
+                try:
+                    c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(line) )
+                except:
+                    pass
             conDB.commit()
 
     
