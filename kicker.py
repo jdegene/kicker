@@ -557,51 +557,54 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     manIDList = [x[0] for x in c.execute('SELECT Manager_ID FROM BL{}_{}'.format(league,season[2:])).fetchall()]
     # reduce list by already exisiting entries -> no double scraping
     manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
-    iterManList = list(set(manIDList) - set(manReduceList))
+    iterManListLong = list(set(manIDList) - set(manReduceList))
     #iterManList = [x for x in manIDList if x not in manReduceList] # This takes forever for a large number of values
     
-    iterManList = iterManList[:1000]    
-    
-    # split list into 5 equal sized parts, last parts length may be shorter 
-    n = int(len(iterManList)/10)
-    iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
-    print("iterManSubList created with ", len(iterManList), " entries")
-    
-
-
-    # open 5 new windows wth unique windows IDs    
-    for x in range(10):
-        driver.execute_script("$(window.open())")
-    #driver.current_window_handle #get current window handle
-    #driver.window_handles #get a list of all current handles
-    #driver.switch_to_window(driver.window_handles[-1]) # switch to last opened window
-    
-    with cf.ThreadPoolExecutor(max_workers=2) as e:
-        x = e.submit(runIterList, driver.window_handles[1], iterManSubList[0], Spieltag, season, league)
-        x2 = e.submit(runIterList, driver.window_handles[2], iterManSubList[1], Spieltag, season, league)
-        x3 = e.submit(runIterList, driver.window_handles[3], iterManSubList[2], Spieltag, season, league)
-        x4 = e.submit(runIterList, driver.window_handles[4], iterManSubList[3], Spieltag, season, league)
-        x5 = e.submit(runIterList, driver.window_handles[5], iterManSubList[4], Spieltag, season, league)
+    # Divide the list up in chunks of 1000, after each of these chunks these are written to DB
+    for x in range(0,len(iterManListLong)+1, 1000):
+        iterManList = iterManListLong[x:x+1000]
         
-        x6 = e.submit(runIterList, driver.window_handles[6], iterManSubList[5], Spieltag, season, league)
-        x7 = e.submit(runIterList, driver.window_handles[7], iterManSubList[6], Spieltag, season, league)
-        x8 = e.submit(runIterList, driver.window_handles[8], iterManSubList[7], Spieltag, season, league)
-        x9 = e.submit(runIterList, driver.window_handles[9], iterManSubList[8], Spieltag, season, league)
-        x10 = e.submit(runIterList, driver.window_handles[10], iterManSubList[9], Spieltag, season, league)
-        
+        # max Number of threads, e.submit threads must be changed manually
+        maxThreads = 10
+        # split iterManList list into "maxThreads" equal sized parts, last parts length may be shorter 
+        n = int(len(iterManList)/maxThreads)
+        # create a list of sublists, each sublist is passed to it owm process
+        iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
 
-    for w in (x.result(),x2.result(),x3.result(),x4.result(),x5.result(),
-              x6.result(),x7.result(),x8.result(),x9.result(),x10.result()):
-        # write each output line-by-line to the DB
-        for line in w:
-            c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(line) )
-            #print(Spieltag, manID, "done")
-        conDB.commit()
+    
+        # open "maxThreads" new windows wth unique windows IDs    
+        for x in range(maxThreads):
+            driver.execute_script("$(window.open())")
+        #driver.current_window_handle #get current window handle
+        #driver.window_handles #get a list of all current handles
+        #driver.switch_to_window(driver.window_handles[-1]) # switch to last opened window
+        
+        with cf.ThreadPoolExecutor(max_workers=maxThreads) as e:
+            x = e.submit(runIterList, driver.window_handles[1], iterManSubList[0], Spieltag, season, league)
+            x2 = e.submit(runIterList, driver.window_handles[2], iterManSubList[1], Spieltag, season, league)
+            x3 = e.submit(runIterList, driver.window_handles[3], iterManSubList[2], Spieltag, season, league)
+            x4 = e.submit(runIterList, driver.window_handles[4], iterManSubList[3], Spieltag, season, league)
+            x5 = e.submit(runIterList, driver.window_handles[5], iterManSubList[4], Spieltag, season, league)
+            
+            x6 = e.submit(runIterList, driver.window_handles[6], iterManSubList[5], Spieltag, season, league)
+            x7 = e.submit(runIterList, driver.window_handles[7], iterManSubList[6], Spieltag, season, league)
+            x8 = e.submit(runIterList, driver.window_handles[8], iterManSubList[7], Spieltag, season, league)
+            x9 = e.submit(runIterList, driver.window_handles[9], iterManSubList[8], Spieltag, season, league)
+            x10 = e.submit(runIterList, driver.window_handles[10], iterManSubList[9], Spieltag, season, league)
+            
+    
+        for w in (x.result(),x2.result(),x3.result(),x4.result(),x5.result(),
+                  x6.result(),x7.result(),x8.result(),x9.result(),x10.result()):
+            # write each output line-by-line to the DB
+            for line in w:
+                c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(line) )
+                #print(Spieltag, manID, "done")
+            conDB.commit()
 
     
     #conDB.close()
 
-#scrapeTacticsMult(dbName, season, league,Spieltag=1)    
+scrapeTacticsMult(dbName, season, league,Spieltag=1)    
 
 
 # single execution
