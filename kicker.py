@@ -532,6 +532,8 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     Uses Mananger IDs from Manager table in DB to extract teams by 
     scrapePoints() must be run before for each GD
     
+    Gamedays are manual input, KeepTrack table is not used nor updated!
+    
     If gameday was not finished: will pick up unfinished Managers during gameday
     """
     
@@ -560,24 +562,25 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     iterManListLong = list(set(manIDList) - set(manReduceList))
     #iterManList = [x for x in manIDList if x not in manReduceList] # This takes forever for a large number of values
     
+    
+    # max Number of threads, e.submit threads must be changed manually
+    maxThreads = 10
+    
+    # open "maxThreads" new windows wth unique windows IDs    
+    for x in range(maxThreads):
+        driver.execute_script("$(window.open())")
+    #driver.current_window_handle #get current window handle
+    #driver.window_handles #get a list of all current handles
+    #driver.switch_to_window(driver.window_handles[-1]) # switch to last opened window
+    
     # Divide the list up in chunks of 1000, after each of these chunks these are written to DB
     for x in range(0,len(iterManListLong)+1, 1000):
         iterManList = iterManListLong[x:x+1000]
         
-        # max Number of threads, e.submit threads must be changed manually
-        maxThreads = 10
         # split iterManList list into "maxThreads" equal sized parts, last parts length may be shorter 
         n = int(len(iterManList)/maxThreads)
         # create a list of sublists, each sublist is passed to it owm process
         iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
-
-    
-        # open "maxThreads" new windows wth unique windows IDs    
-        for x in range(maxThreads):
-            driver.execute_script("$(window.open())")
-        #driver.current_window_handle #get current window handle
-        #driver.window_handles #get a list of all current handles
-        #driver.switch_to_window(driver.window_handles[-1]) # switch to last opened window
         
         with cf.ThreadPoolExecutor(max_workers=maxThreads) as e:
             x = e.submit(runIterList, driver.window_handles[1], iterManSubList[0], Spieltag, season, league)
