@@ -42,7 +42,7 @@ Run scrapePoints() first, as scrapeTactic() will access the results to determine
 	scrapeTactics() and scrapeTacticsMult() can be run in parallel using seperated Python processes. However, these should not access the same db with different pointers.
 	-> The use of seperate DBs is advised.
 
-The result are two or more DBs that need to merged into one again, achieved using this function
+	The result are two or more DBs that need to merged into one again, achieved using this function
 
 
 ### deprecated files
