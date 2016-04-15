@@ -13,20 +13,20 @@ Is the main file and the only one that is updated. It scrapes Manager Points, Ma
 
 Run scrapePoints() first, as scrapeTactic() will access the results to determine which Manager IDs are acutally available for scraping
 
-* scrapePoints()
+* *scrapePoints()*
 
 	Uses the results of each gameday to scrape points for each Manager. 30 Managers per site are extracted. No parallel extraction implemented yet.
 	Does not check for double entries currently, but will only scrape gamedays that are not marked as finished yet.
  
-Must be run for each gameday before scrapeTactics() can be run
+	Must be run for each gameday before scrapeTactics() can be run
 
-* scrapeTactics()
+* *scrapeTactics()*
 
 	Access each Managers gameday tactics setup and saves formation ID and ordered Player IDs for each gameday. 
 	No parallel processing -> very slow as each gameday for each manager is called in serial order
 
 
-* scrapeTacticsMult() and runIterList() 
+* *scrapeTacticsMult() and runIterList()*
 
 	The parallel version of scrapeTactics(), where the first calls the latter. Gamedays have to be called manually, for each day all Manager IDs are scraped.  
 	If gameday is aborted during the run, the script on return will only scrape unfinished Manager IDs. 
@@ -37,7 +37,7 @@ Must be run for each gameday before scrapeTactics() can be run
 	This will not set the flag to "finished" in the KeepTrack DB table -> do this manually or let scrapeTactics() run over it once 
 
 
-* mergeDBs()
+* *mergeDBs()*
 
 	scrapeTactics() and scrapeTacticsMult() can be run in parallel using seperated Python processes. However, these should not access the same db with different pointers.
 	-> The use of seperate DBs is advised.
