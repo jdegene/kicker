@@ -24,13 +24,13 @@ Access each Managers gameday tactics setup and saves formation ID and ordered Pl
 No parallel processing -> very slow as each gameday for each manager is called in serial order
 
 * scrapeTacticsMult() and runIterList()
-...The parallel version of scrapeTactics(), where the first calls the latter. Gamedays have to be called manually, for each day all Manager IDs are scraped. 
-...If gameday is aborted during the run, the script on return will only scrape unfinished Manager IDs.
- 
+...The parallel version of scrapeTactics(), where the first calls the latter. Gamedays have to be called manually, for each day all Manager IDs are scraped.  
+...If gameday is aborted during the run, the script on return will only scrape unfinished Manager IDs. 
+  
 ...For each PhantomJS instance 10 windows are opened in parallel to scrape information. Each window gets its own Manager list. 
-...After 1000 calls all 10 windows return a list which is then stored in the DB (this system might be changed in the future by using Queues for each return)
- 
-...This will not set the flag to "finished" in the KeepTrack DB table -> do this manually or let scrapeTactics() run over it once
+...After 1000 calls all 10 windows return a list which is then stored in the DB (this system might be changed in the future by using Queues for each return) 
+  
+...This will not set the flag to "finished" in the KeepTrack DB table -> do this manually or let scrapeTactics() run over it once 
 
 
 * mergeDBs()
