@@ -19,7 +19,7 @@ league = '1'
 maxGD = 28
 
 # Database filepath
-dbName = 'D:/Test/kicker_db/kicker_main.sqlite'
+dbName = 'D:/Test/kicker_db/kicker_sub_3.sqlite'
 
 
 #############################
@@ -423,9 +423,14 @@ def scrapePlayers(dbName, season, league, update=1):
             gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
             gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
             
-            grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')            
+            grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')   
             
             result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
+            resultTag = gotOutTag.findNext().findNext().findNext().findNext().findNext()
+            
+            gameURL = resultTag.findNext().findChild().get('href')
+            
+            gameID = gameURL[ gameURL.rfind('/', 0, gameURL.rfind('/spielanalyse')) + 1  : gameURL.rfind('/spielanalyse')]
             
             
             # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
@@ -611,7 +616,7 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     
     #conDB.close()
 
-scrapeTacticsMult(dbName, season, league,Spieltag=1)    
+   
 
 
 # single execution
@@ -746,6 +751,20 @@ def mergeDBs(mainDB, secDB, tblName):
     conDB.close()
     
 
+
+
+
+#########################################################################################
+############################### Others  #################################################
+######################################################################################### 
+
+#def calcPoints(grade, goals, red, yelred, assist, bgin, mvp, plIn, zeroG):
+#    """
+#    calculate the points a player gained by using his grade, score etc.
+#    """
+    
+
+
     
 #########################################################################################
     
@@ -754,10 +773,15 @@ def mergeDBs(mainDB, secDB, tblName):
 ######################################################################################### 
 
   
+#mergeDBs('D:/Test/kicker_db/kicker_main.sqlite', 'D:/Test/kicker_db/kicker_main_2.sqlite', 'Tactics1_15')
+ 
+ 
+ 
 
-#scrapeTacticsMult(dbName, season, league,Spieltag=1)    
+for x in range(16,24):
+    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
-  
+
   
 #scrapePoints(dbName,league,maxGD)
 #scrapeTactics(dbName, season, league, maxGD)
