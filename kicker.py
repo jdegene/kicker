@@ -81,7 +81,7 @@ if dbExists == 0:
             tacTblName = 'Tactics' + str(i) + "_" + season[2:]
             c.execute('CREATE TABLE IF NOT EXISTS ' + tacTblName + ' (Manager_ID INT, GameDay INT, TacID INT, PRIMARY KEY (Manager_ID, GameDay))')
             for colName in ['Goal' + str(n) for n in range(1,4)]: # 3 Goalies
-                Point
+                c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(tacTblName, colName) )
             for colName in ['Defn' + str(n) for n in range(1,7)]: # 6 Defenders
                 c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(tacTblName, colName) )
             for colName in ['Midf' + str(n) for n in range(1,9)]: # 8 Midfielders
