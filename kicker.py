@@ -19,7 +19,7 @@ league = '1'
 maxGD = 30
 
 # Database filepath
-dbName = 'D:/Test/kicker_db/kicker_sub_3.sqlite'
+dbName = 'D:/Test/kicker_x_db/kicker_main.sqlite'
 
 
 #############################
@@ -69,6 +69,11 @@ if dbExists == 0:
                 c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(pointTblName, colName) )
     except:
         pass
+    
+    # store information for single games
+    c.execute('CREATE TABLE IF NOT EXISTS Games (GameID INTEGER PRIMARY KEY, GameURL TEXT, Season INT, \
+               League INT, EndResult TEXT, PlayerOfGame INT, Viewers INT, GameGrade REAL, ChancesRel TEXT, \
+               CornersRel TEXT, RefreeName TEXT, RefreeGrade REAL)')
     
     # Table to store each game day, for each manager, with tactics and all players
     # populated by scrapeTactics()
@@ -428,8 +433,8 @@ def scrapePlayers(dbName, season, league, update=1):
                 
                 grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')   
                 
-                result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
-                resultTag = gotOutTag.findNext().findNext().findNext().findNext().findNext()
+                #result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
+                #resultTag = gotOutTag.findNext().findNext().findNext().findNext().findNext()
                 
                 gameURL = resultTag.findNext().findChild().get('href')
                 
@@ -720,6 +725,81 @@ def scrapeTactics(dbName, season, league, maxGD):
     conDB.close()
         
 
+#########################################################################################
+###################### Game Page Scraping  ##############################################
+#########################################################################################
+
+def scrapeGames(season, league):
+    """
+    will get the GameURL from PlayerStats Table, calls un-called URLs, extracts info and stores in Games Table
+    
+    -> scrapePlayers() must be run first for each gameDay
+    """
+    
+    conDB = sqlite3.connect(dbName)
+    c = conDB.cursor()
+    
+    # get all URLs from PlayerStats
+    URLlist = [x[0] for x in c.execute('SELECT GameURL FROM PlayerStats{}_{}'.format(league,season[2:])).fetchall()]
+    
+    # get all existing URLs from Games
+    exURLlist = [x[0] for x in c.execute('SELECT GameURL FROM Games'.format(league,season[2:])).fetchall()]
+    
+    # unique URl list -> double entries are thrown out
+    uniqueURLs = list(set(URLlist)-set(exURLlist))
+    
+    for curURL in uniqueURLs:
+        driver.get(curURL) 
+        BLrankHTLM = driver.page_source
+        soup = BeautifulSoup(BLrankHTLM, "lxml")
+        
+        homeGoals = soup.find('div', attrs={'id':'ovBoardExtMainH'}).text
+        guestGoals = soup.find('div', attrs={'id':'ovBoardExtMainA'}).text
+        endResult = homeGoals+":"+guestGoals
+        
+        # Viewers may be only a number, or with text appended (eg 'ausverkauft') -> only return number
+        viewersX = soup.find('div', attrs={'class':'zuschauer'}).findNext().findNext().text
+        viewers = int(viewersX.split()[0])
+        
+        gameGTag = soup.find('div', attrs={'class':'spielnote'})
+        txtGrade = gameGTag.text[gameGTag.text.find(':') + 1 : ].strip()
+        gameGrade = txtGrade.replace("-","0").replace(',','.')
+        
+        chancesRel = soup.find('div', attrs={'class':'chancen'}).findNext().findNext().text
+        
+        cornersRel = soup.find('div', attrs={'class':'ecken'}).findNext().findNext().text
+        
+        refEntry = soup.find('div', attrs={'class':'schiedsrichter'}).findNext()
+        refree = refEntry.findNext('a').text
+        
+        sText = sText = soup.find('div', attrs={'class':'schiedsrichter'}).findNext().findNext().text
+        sText = sText[sText.find('Note') + 5 :  sText.find('\n', sText.find('Note')+5)]
+        refrGrade = sText.replace("-","0").replace(',','.')
+        
+        mvpLink = soup.find('div', attrs={'class':'spldesspiels'}).findNext('a').get('href')
+        MVP = mvpLink[ mvpLink.rfind('/', 0, mvpLink.rfind('/')) + 1  :  mvpLink.rfind('/') ]
+    
+
+        gameID = curURL[curURL.rfind('/', 0, curURL.rfind('/spielanalyse')) + 1  : curURL.rfind('/spielanalyse')]
+        
+        print('INSERT OR IGNORE INTO Games VALUES ({}, "{}", {}, {}, "{}", {}, {}, {}, "{}", "{}", "{}", {})'.format(
+                                    gameID, curURL, season, league, endResult, MVP, viewers, gameGrade, chancesRel, 
+                                    cornersRel, refree, refrGrade))
+        
+        c.execute( 'INSERT OR IGNORE INTO Games VALUES ({}, "{}", {}, {}, "{}", {}, {}, {}, "{}", "{}", "{}", {})'.format(
+                                    gameID, curURL, season, league, endResult, MVP, viewers, gameGrade, chancesRel, 
+                                    cornersRel, refree, refrGrade) )
+
+        conDB.commit()
+    
+    
+    driver.close()
+    conDB.close()
+
+
+
+
+
 
 
 
@@ -783,8 +863,8 @@ def mergeDBs(mainDB, secDB, tblName):
  
  
 
-for x in range(17,24):
-    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
+#for x in range(17,24):
+#    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
 
   
@@ -794,7 +874,7 @@ for x in range(17,24):
 #scrapePlayers(dbName, season, league, update=0)
    
    
-   
+scrapeGames(season, league)   
    
    
    
