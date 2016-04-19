@@ -16,7 +16,7 @@ season = '2015'
 league = '1'
 
 # Last played GameDay
-maxGD = 28
+maxGD = 30
 
 # Database filepath
 dbName = 'D:/Test/kicker_db/kicker_sub_3.sqlite'
@@ -81,7 +81,7 @@ if dbExists == 0:
             tacTblName = 'Tactics' + str(i) + "_" + season[2:]
             c.execute('CREATE TABLE IF NOT EXISTS ' + tacTblName + ' (Manager_ID INT, GameDay INT, TacID INT, PRIMARY KEY (Manager_ID, GameDay))')
             for colName in ['Goal' + str(n) for n in range(1,4)]: # 3 Goalies
-                c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(tacTblName, colName) )
+                Point
             for colName in ['Defn' + str(n) for n in range(1,7)]: # 6 Defenders
                 c.execute('ALTER TABLE {} ADD COLUMN {} INTEGER'.format(tacTblName, colName) )
             for colName in ['Midf' + str(n) for n in range(1,9)]: # 8 Midfielders
@@ -288,7 +288,10 @@ def scrapePlayers(dbName, season, league, update=1):
                                                      Yellow INT, \
                                                      Change_In INT, \
                                                      Change_Out INT, \
-                                                     Grade REAL)'.format(league,season[2:]))
+                                                     Grade REAL, \
+                                                     Points INT, \
+                                                     GameID INT, \
+                                                     GameURL TEXT)'.format(league,season[2:]))
     
     
     
@@ -396,54 +399,54 @@ def scrapePlayers(dbName, season, league, update=1):
                 
         # Gameday related info
         
-        #try:
-        entry = soup.find('table', attrs={'class':"tStat", 'summary':"spieler", 'width':"100%"})    
+        try:
+            entry = soup.find('table', attrs={'class':"tStat", 'summary':"spieler", 'width':"100%"})    
+            
+            # Each 'first' td tag is a gameday: if gameday was not played, no information is scraped
+            for firstTag in entry.findChildren('td', attrs={'class':"first"}):
+                gameDay = firstTag.text
+                
+                goals = firstTag.findNext().text.replace("-","0")
+                
+                elfer = firstTag.findNext().findNext().text.replace('\xa0', "")
+                
+                assists = firstTag.findNext().findNext().findNext().text.replace("-","0")
+            
+                scorer = firstTag.findNext().findNext().findNext().findNext().text.replace("-","0")
+                scoretag = firstTag.findNext().findNext().findNext().findNext()
         
-        # Each 'first' td tag is a gameday: if gameday was not played, no information is scraped
-        for firstTag in entry.findChildren('td', attrs={'class':"first"}):
-            gameDay = firstTag.text
+                red = scoretag.findNext().text.replace("-","0")
+                
+                yelred = scoretag.findNext().findNext().text.replace("-","0")
+                
+                yellow = scoretag.findNext().findNext().findNext().text.replace("-","0")
+                
+                gotIn = scoretag.findNext().findNext().findNext().findNext().text.replace("-","0")
+                
+                gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
+                gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
+                
+                grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')   
+                
+                result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
+                resultTag = gotOutTag.findNext().findNext().findNext().findNext().findNext()
+                
+                gameURL = resultTag.findNext().findChild().get('href')
+                
+                gameID = gameURL[ gameURL.rfind('/', 0, gameURL.rfind('/spielanalyse')) + 1  : gameURL.rfind('/spielanalyse')]
+                
+                
+                # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
+                # into another player ID by accident
+                UID = str(ID)+ "000" +str(gameDay)
+                
+                c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}")'.format(
+                                    league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
+                                                        red, yelred, yellow, gotIn, gotOut, grade, gameID, gameURL) )
+                conDB.commit()  
             
-            goals = firstTag.findNext().text.replace("-","0")
-            
-            elfer = firstTag.findNext().findNext().text.replace('\xa0', "")
-            
-            assists = firstTag.findNext().findNext().findNext().text.replace("-","0")
-        
-            scorer = firstTag.findNext().findNext().findNext().findNext().text.replace("-","0")
-            scoretag = firstTag.findNext().findNext().findNext().findNext()
-    
-            red = scoretag.findNext().text.replace("-","0")
-            
-            yelred = scoretag.findNext().findNext().text.replace("-","0")
-            
-            yellow = scoretag.findNext().findNext().findNext().text.replace("-","0")
-            
-            gotIn = scoretag.findNext().findNext().findNext().findNext().text.replace("-","0")
-            
-            gotOut = scoretag.findNext().findNext().findNext().findNext().findNext().text.replace("-","0")
-            gotOutTag = scoretag.findNext().findNext().findNext().findNext().findNext()
-            
-            grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')   
-            
-            result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
-            resultTag = gotOutTag.findNext().findNext().findNext().findNext().findNext()
-            
-            gameURL = resultTag.findNext().findChild().get('href')
-            
-            gameID = gameURL[ gameURL.rfind('/', 0, gameURL.rfind('/spielanalyse')) + 1  : gameURL.rfind('/spielanalyse')]
-            
-            
-            # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
-            # into another player ID by accident
-            UID = str(ID)+ "000" +str(gameDay)
-            
-            c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {})'.format(
-                                league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
-                                                    red, yelred, yellow, gotIn, gotOut, grade) )
-            conDB.commit()  
-            
-        #except:
-            #continue
+        except:
+            continue
     
     driver.close()
     conDB.commit()
@@ -555,10 +558,7 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
 #    
 #    # Use this to force one certain Spieltag, should be off by default
 #    iterList = [1]
-    
-    # if no Spieltag is given, use Spieltag 1
-    if Spieltag==0:
-        Spieltag = 1
+   
     
     # get List of all Managers if points have been scraped this season
     manIDList = [x[0] for x in c.execute('SELECT Manager_ID FROM BL{}_{}'.format(league,season[2:])).fetchall()]
@@ -584,6 +584,11 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
         
         # split iterManList list into "maxThreads" equal sized parts, last parts length may be shorter 
         n = int(len(iterManList)/maxThreads)
+        
+        # gameDays may have left few unsolved manager IDs, these throw errors if too few to devide
+        if n < maxThreads:
+            break
+        
         # create a list of sublists, each sublist is passed to it owm process
         iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
         
@@ -601,7 +606,7 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
             x10 = e.submit(runIterList, driver.window_handles[10], iterManSubList[9], Spieltag, season, league)
             
     
-        for w in (x.result(),x2.result(),x3.result(),x4.result(),x5.result(),
+        for w in ( x.result(),x2.result(),x3.result(),x4.result(),x5.result(),
                   x6.result(),x7.result(),x8.result(),x9.result(),x10.result()):
             
             
@@ -778,7 +783,7 @@ def mergeDBs(mainDB, secDB, tblName):
  
  
 
-for x in range(16,24):
+for x in range(17,24):
     scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
 
@@ -786,7 +791,7 @@ for x in range(16,24):
 #scrapePoints(dbName,league,maxGD)
 #scrapeTactics(dbName, season, league, maxGD)
  
-#scrapePlayers(dbName, season, league)
+#scrapePlayers(dbName, season, league, update=0)
    
    
    
