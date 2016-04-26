@@ -13,13 +13,13 @@ import concurrent.futures as cf
 
 # define used season (starting year), used for naming within database (no past season support)
 season = '2015'
-league = '1'
+league = '2'
 
 # Last played GameDay
-maxGD = 30
+maxGD = 31
 
 # Database filepath
-dbName = 'D:/Test/kicker_x_db/kicker_main.sqlite'
+dbName = 'D:/Test/kicker_db/kicker_sub2.sqlite'
 
 
 #############################
@@ -548,6 +548,8 @@ def scrapeTacticsMult(dbName, season, league, Spieltag=0):
     Gamedays are manual input, KeepTrack table is not used nor updated!
     
     If gameday was not finished: will pick up unfinished Managers during gameday
+    
+    Process may get stuck for unknown reasons (website opens and never finishes?) and has to be restarted manually
     """
     
     # Overwrite dbname, should be off by default
@@ -749,42 +751,42 @@ def scrapeGames(season, league):
     uniqueURLs = list(set(URLlist)-set(exURLlist))
     
     for curURL in uniqueURLs:
-        driver.get(curURL) 
-        BLrankHTLM = driver.page_source
-        soup = BeautifulSoup(BLrankHTLM, "lxml")
+        try:
+            driver.get(curURL) 
+            BLrankHTLM = driver.page_source
+            soup = BeautifulSoup(BLrankHTLM, "lxml")
+            
+            homeGoals = soup.find('div', attrs={'id':'ovBoardExtMainH'}).text
+            guestGoals = soup.find('div', attrs={'id':'ovBoardExtMainA'}).text
+            endResult = homeGoals+":"+guestGoals
+            
+            # Viewers may be only a number, or with text appended (eg 'ausverkauft') -> only return number
+            viewersX = soup.find('div', attrs={'class':'zuschauer'}).findNext().findNext().text
+            viewers = int(viewersX.split()[0])
+            
+            gameGTag = soup.find('div', attrs={'class':'spielnote'})
+            txtGrade = gameGTag.text[gameGTag.text.find(':') + 1 : ].strip()
+            gameGrade = txtGrade.replace("-","0").replace(',','.')
+            
+            chancesRel = soup.find('div', attrs={'class':'chancen'}).findNext().findNext().text
+            
+            cornersRel = soup.find('div', attrs={'class':'ecken'}).findNext().findNext().text
+            
+            refEntry = soup.find('div', attrs={'class':'schiedsrichter'}).findNext()
+            refree = refEntry.findNext('a').text
+            
+            sText = sText = soup.find('div', attrs={'class':'schiedsrichter'}).findNext().findNext().text
+            sText = sText[sText.find('Note') + 5 :  sText.find('\n', sText.find('Note')+5)]
+            refrGrade = sText.replace("-","0").replace(',','.')
+            
+            mvpLink = soup.find('div', attrs={'class':'spldesspiels'}).findNext('a').get('href')
+            MVP = mvpLink[ mvpLink.rfind('/', 0, mvpLink.rfind('/')) + 1  :  mvpLink.rfind('/') ]
         
-        homeGoals = soup.find('div', attrs={'id':'ovBoardExtMainH'}).text
-        guestGoals = soup.find('div', attrs={'id':'ovBoardExtMainA'}).text
-        endResult = homeGoals+":"+guestGoals
-        
-        # Viewers may be only a number, or with text appended (eg 'ausverkauft') -> only return number
-        viewersX = soup.find('div', attrs={'class':'zuschauer'}).findNext().findNext().text
-        viewers = int(viewersX.split()[0])
-        
-        gameGTag = soup.find('div', attrs={'class':'spielnote'})
-        txtGrade = gameGTag.text[gameGTag.text.find(':') + 1 : ].strip()
-        gameGrade = txtGrade.replace("-","0").replace(',','.')
-        
-        chancesRel = soup.find('div', attrs={'class':'chancen'}).findNext().findNext().text
-        
-        cornersRel = soup.find('div', attrs={'class':'ecken'}).findNext().findNext().text
-        
-        refEntry = soup.find('div', attrs={'class':'schiedsrichter'}).findNext()
-        refree = refEntry.findNext('a').text
-        
-        sText = sText = soup.find('div', attrs={'class':'schiedsrichter'}).findNext().findNext().text
-        sText = sText[sText.find('Note') + 5 :  sText.find('\n', sText.find('Note')+5)]
-        refrGrade = sText.replace("-","0").replace(',','.')
-        
-        mvpLink = soup.find('div', attrs={'class':'spldesspiels'}).findNext('a').get('href')
-        MVP = mvpLink[ mvpLink.rfind('/', 0, mvpLink.rfind('/')) + 1  :  mvpLink.rfind('/') ]
     
-
-        gameID = curURL[curURL.rfind('/', 0, curURL.rfind('/spielanalyse')) + 1  : curURL.rfind('/spielanalyse')]
+            gameID = curURL[curURL.rfind('/', 0, curURL.rfind('/spielanalyse')) + 1  : curURL.rfind('/spielanalyse')]
+        except:
+            continue
         
-        print('INSERT OR IGNORE INTO Games VALUES ({}, "{}", {}, {}, "{}", {}, {}, {}, "{}", "{}", "{}", {})'.format(
-                                    gameID, curURL, season, league, endResult, MVP, viewers, gameGrade, chancesRel, 
-                                    cornersRel, refree, refrGrade))
         
         c.execute( 'INSERT OR IGNORE INTO Games VALUES ({}, "{}", {}, {}, "{}", {}, {}, {}, "{}", "{}", "{}", {})'.format(
                                     gameID, curURL, season, league, endResult, MVP, viewers, gameGrade, chancesRel, 
@@ -798,10 +800,63 @@ def scrapeGames(season, league):
 
 
 
+#########################################################################################
+############################# download player imgs ######################################
+#########################################################################################
+
+def dlPic(league, season):    
+    """
+    uses the Player_ID stored in PlayerX_Y table to download each player image
+    saves it using ID_LastName_FirstName.jpg
+    """
+    
+    import urllib
+
+    dlFol = 'D:/Test/kicker_x_db/pics/'
+    
+    conDB = sqlite3.connect(dbName)
+    c = conDB.cursor()
+    
+    # get all Player IDs
+    idListTup = c.execute('SELECT Player_ID FROM Player{}_{}'.format(league, season[2:])).fetchall()
+    idList = [x[0] for x in idListTup]
+    
+    # check ids agains existing files
+    checkList = []
+    for picFile in os.listdir(dlFol):
+        checkList.append(int(picFile[:picFile.find('_')]))
+            
+    cleanList = list(set(idList) - set(checkList))   
+    
+    
+    for plID in cleanList:    
+        
+        firstName = c.execute('SELECT FirstName FROM Player{}_{} WHERE Player_ID={}'.format(league,season[2:],plID) ).fetchone()[0]
+        lastName = c.execute('SELECT LastName FROM Player{}_{} WHERE Player_ID={}'.format(league,season[2:],plID) ).fetchone()[0]
+        
+        # Define URL for each Manager/league/Day combination
+        if league == '1':
+            playrURL = 'http://manager.kicker.de/interactive/bundesliga/meinteam/spieleranalyse/spielerid/{}'.format(plID)
+        elif league == '2':
+            playrURL = 'http://manager.kicker.de/interactive/2bundesliga/meinteam/spieleranalyse/spielerid/{}'.format(plID)
+        else:
+            'Only League 1 or 2 supported'
+    
+        
+        driver.get(playrURL) 
+        BLrankHTLM = driver.page_source
+        soup = BeautifulSoup(BLrankHTLM, "lxml")
+        
+        tag = soup.find('img', attrs={'id':'ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_ImgSpieler'})
+        picLink = tag.get('src')
+        
+        saveName = dlFol + str(plID) + "_" + str(lastName) + "_" + str(firstName) + ".jpg"
+        urllib.request.urlretrieve(picLink, saveName)
+        
+        
 
 
-
-
+#dlPic('1', '2015')
 
 #########################################################################################
 ############################# DB Scripts  ###############################################
@@ -849,6 +904,11 @@ def mergeDBs(mainDB, secDB, tblName):
 #    """
     
 
+# Get count of existing entries
+#myList = []
+#for x in range(1,35):
+#    myQuery = c.execute("SELECT * FROM Tactics1_15 WHERE GameDay = {}".format(x)).fetchall()
+#    myList.append(len(myQuery))
 
     
 #########################################################################################
@@ -863,7 +923,7 @@ def mergeDBs(mainDB, secDB, tblName):
  
  
 
-#for x in range(17,24):
+#for x in range(1,32):
 #    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
 
@@ -874,13 +934,15 @@ def mergeDBs(mainDB, secDB, tblName):
 #scrapePlayers(dbName, season, league, update=0)
    
    
-scrapeGames(season, league)   
+#scrapeGames(season, league)   
    
+
+#myList = []
+#for x in range(1,32):
+#    liste = c.execute('SELECT Manager_ID FROM Tactics2_15 WHERE GameDay='+str(x) ).fetchall()
+#    myList.append(len(liste))
    
-   
-   
-   
-   
+
    
    
    
