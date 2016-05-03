@@ -28,6 +28,10 @@ Run scrapePoints() first, as scrapeTactic() will access the results to determine
 
 * *scrapeTacticsMult() and runIterList()*
 
+	DO NOT USE AS OF NOW! (05/2016)
+	
+	Will open 10 phantomJS windows, return the correct Manager ID's but will assign ONLY the extracted values from the last opened window (even to the other nine opened before)
+
 	The parallel version of scrapeTactics(), where the first calls the latter. Gamedays have to be called manually, for each day all Manager IDs are scraped.  
 	If gameday is aborted during the run, the script on return will only scrape unfinished Manager IDs. 
   
