@@ -268,7 +268,7 @@ def scrapePlayers(dbName, season, league, update=1):
     c = conDB.cursor()
     
     # Table for basic player information
-    c.execute('CREATE TABLE IF NOT EXISTS Player{}_{}(Player_ID INTEGER PRIMARY KEY, \
+    c.execute('CREATE TABLE IF NOT EXISTS Player(Player_ID INTEGER PRIMARY KEY, \
                                                      FirstName TEXT, \
                                                      LastName TEXT, \
                                                      Team TEXT, \
@@ -278,10 +278,10 @@ def scrapePlayers(dbName, season, league, update=1):
                                                      Born TEXT, \
                                                      Height INT, \
                                                      Weight INT, \
-                                                     Nationality TEXT)'.format(league,season[2:]))
+                                                     Nationality TEXT)')
     
     # Table for player performance per gameday
-    c.execute('CREATE TABLE IF NOT EXISTS PlayerStats{}_{}(UQID INT PRIMARY KEY, \
+    c.execute('CREATE TABLE IF NOT EXISTS PlayerStats(UQID INT PRIMARY KEY, \
                                                      Player_ID INT, \
                                                      GameDay INT, \
                                                      Goals INT, \
@@ -324,12 +324,12 @@ def scrapePlayers(dbName, season, league, update=1):
         
         # write player_IDs from list into DB
         for ID in kickerIDlist:
-            c.execute('INSERT OR IGNORE INTO Player{}_{} (Player_ID) VALUES ({})'.format(league,season[2:], ID))       
+            c.execute('INSERT OR IGNORE INTO Player (Player_ID) VALUES ({})'.format(league,season[2:], ID))       
         conDB.commit()  
     
     # for updates, Player Table is searched for missing FirstNames and exisiting IDs
     elif update == 1:
-        for x in c.execute('SELECT Player_ID FROM Player{}_{} WHERE FirstName IS NULL'.format(league,season[2:])).fetchall():
+        for x in c.execute('SELECT Player_ID FROM Player WHERE FirstName IS NULL'.format(league,season[2:])).fetchall():
            kickerIDlist.append(str(x[0]))
     
     else:
@@ -388,7 +388,7 @@ def scrapePlayers(dbName, season, league, update=1):
         parseList = [x if x != '' else '\" \"' for x in parseList]
    
         
-        c.execute('UPDATE Player{}_{} SET FirstName="{}", \
+        c.execute('UPDATE Player SET FirstName="{}", \
                                           LastName="{}", \
                                           Team="{}", \
                                           POS="{}", \
@@ -445,7 +445,7 @@ def scrapePlayers(dbName, season, league, update=1):
                 # into another player ID by accident
                 UID = str(ID)+ "000" +str(gameDay)
                 
-                c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}")'.format(
+                c.execute('INSERT OR IGNORE INTO PlayerStats VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}")'.format(
                                     league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
                                                         red, yelred, yellow, gotIn, gotOut, grade, gameID, gameURL) )
                 conDB.commit()  
@@ -941,7 +941,7 @@ def mergeDBs(mainDB, secDB, tblName):
   
 #scrapePoints(dbName,league,maxGD)
   
-scrapeTactics(dbName, season, league, 1)
+#scrapeTactics(dbName, season, league, 1)
  
 #scrapePlayers(dbName, season, league, update=0)
    
