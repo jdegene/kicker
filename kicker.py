@@ -19,7 +19,7 @@ league = '1'
 maxGD = 31
 
 # Database filepath
-dbName = 'D:/Test/kicker_db/kicker_sub1.sqlite'
+dbName = 'D:/WorkExchange/kicker/kicker_main.sqlite'
 
 
 #############################
@@ -456,6 +456,94 @@ def scrapePlayers(dbName, season, league, update=1):
     driver.close()
     conDB.commit()
     conDB.close()
+
+
+
+def scrapePlayers2(dbName):
+        """
+        ScrapePlayers doesnt account for players that have left during the season
+        This function iterates through all IDs and saves information if the playerID exists
+        """  
+        
+        conDB = sqlite3.connect(dbName)
+        c = conDB.cursor()
+        
+        # create a table that stores PLayerIDs that are non existent
+        c.execute('CREATE TABLE IF NOT EXISTS NonPlayer (Player_ID INTEGER PRIMARY KEY)')
+        
+        # create a list of existing IDs and skip these
+        kickerIDlist = []
+        for x in c.execute('SELECT Player_ID FROM Player').fetchall():
+           kickerIDlist.append(str(x[0]))
+           
+        # also skip known non existing IDs
+        for x in c.execute('SELECT Player_ID FROM NonPlayer ').fetchall():
+            kickerIDlist.append(str(x[0]))
+        
+        for x in range(120000):
+            if str(x) not in  kickerIDlist:
+                URL = "http://manager.kicker.de/interactive/bundesliga/meinteam/spieleranalyse/spielerid/" + str(x)
+                
+                try:
+                    driver.get(URL) 
+                    BLrankHTLM = driver.page_source
+                    soup = BeautifulSoup(BLrankHTLM, "lxml")
+                    
+                    assert "Das von Ihnen angeforderte Dokument konnte nicht erstellt werden" not in BLrankHTLM    
+                    
+                    # Basic Info
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerVorname")
+                    firstName = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerNachname")    
+                    lastName = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblRueckenNr")
+                    backNumber = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellePos")
+                    position = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellerVerein")
+                    team = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGeborenAm")
+                    birthday = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    # the following uses a wildcard, as german ß is used, throwing errors for some players
+                    entry = soup.find(id=re.compile("ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGroe*e"))    
+                    height = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGewicht")
+                    weight = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblNation")
+                    nation = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblMarktwert")
+                    worth = entry.parent.parent.findNextSibling().text.strip()
+                    worth = float( worth[:worth.find('Mio')-1].replace(',','.') )
+                    
+                    # put all into a list, check first if no variable is empty, if empty change to " "
+                    # otherwise SQL error is raised
+                    parseList = (x, firstName,lastName, team, position, backNumber, worth, birthday,height, weight)
+                    parseList = [t if t != '' else '\" \"' for t in parseList]
+               
+                    
+                    c.execute('INSERT OR IGNORE INTO Player VALUES ({}, "{}", "{}","{}","{}",{},{},"{}",{},{})'.format(*parseList) )
+                    
+                    conDB.commit()
+        
+                except AssertionError:
+                    # Update KeepTrack table and exit loop
+                    c.execute('INSERT OR IGNORE INTO NonPlayer VALUES ({})'.format(x) )
+                    conDB.commit()
+                    continue
+
+        driver.close()
+        conDB.commit()
+        conDB.close()
+
 
 
 
@@ -937,7 +1025,7 @@ def mergeDBs(mainDB, secDB, tblName):
 #for x in range(1,32):
 #    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
-
+scrapePlayers2(dbName)
   
 #scrapePoints(dbName,league,maxGD)
   
