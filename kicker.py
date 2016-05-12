@@ -340,7 +340,6 @@ def scrapePlayers(dbName, season, league, update=1):
     
     # Acces each players stats site
     for ID in kickerIDlist:
-        ID = 64040
         if league == '1':
             PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
         elif league == '2':
@@ -924,30 +923,29 @@ def calcPoints(UQID, league, season):
     
     
     # Dictionary with Grades and related Points, grades are keys
-    gradeDict = {1.0:10, 1.5:8, 2.0:6, 2.5:4, 3.0:2, 3.5:0, 4.0:-2, 4.5:-4, 5.0:-6, 5.5:-8, 6.0:-10}
-    
+    gradeDict = {1.0:10, 1.5:8, 2.0:6, 2.5:4, 3.0:2, 3.5:0, 4.0:-2, 4.5:-4, 5.0:-6, 5.5:-8, 6.0:-10}    
     # Dictionary Points for Goals related to poisiion, positions are keys
     goalDict = {'Torwart':6, 'Abwehr':5,'Mittelfeld':4,'Sturm':3}
        
     # PlayerStats query (related to gameday)
-    Uq = c.execute("SELECT * FROM PlayerStats{}_{} WHERE UQID={}".format(league, season[2:], UQID)).fetchone()
-    
+    Uq = c.execute("SELECT * FROM PlayerStats{}_{} WHERE UQID={}".format(league, season[2:], UQID)).fetchone()    
     # Player query (related to general info), get PlayerID from Uq
-    Pq =  c.execute("SELECT * FROM Player WHERE Player_ID={}".format(Uq[1])).fetchone()
-    
+    Pq =  c.execute("SELECT * FROM Player WHERE Player_ID={}".format(Uq[1])).fetchone()    
     # Game query (related to game info), get GameID from Uq
     Gq =  c.execute("SELECT * FROM Games WHERE GameID={}".format(Uq[14])).fetchone()
-    
-    
+     
     
     totP = 0 # Var to store all points
     
     # Played from beginning and got a grade?
-    if Uq[12] > 0:                          
-        totP = totP + 2                     # played from start
-        totP = totP + gradeDict[Uq[12]]     # points for grade
-    else:
-        totP = totP + 1                     # got changed in
+    if Uq[12] > 0 and Uq[10] == 0:           # played from start               
+        totP = totP + 2                     
+        totP = totP + gradeDict[Uq[12]]     
+    elif Uq[12] > 0 and Uq[10] != 0:        # played NOT from start, but got grade
+        totP = totP + 1
+        totP = totP + gradeDict[Uq[12]]
+    else:                                   #  played NOT from start, got NO grade
+        totP = totP + 1                     
     
     # Scored Goals?
     if Uq[3] > 0:
@@ -1024,7 +1022,7 @@ def calcPoints(UQID, league, season):
 
 #scrapeTactics(dbName, season, league, 1)
  
-scrapePlayers(dbName, season, league, update=0)
+#scrapePlayers(dbName, season, league, update=0)
    
    
 #scrapeGames(season, league)   
