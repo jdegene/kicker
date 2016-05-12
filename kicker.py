@@ -19,7 +19,10 @@ league = '1'
 maxGD = 33
 
 # Database filepath
+
 dbName = 'D:/Test/kicker_x_db/kicker_main_2.sqlite'
+
+
 
 
 #############################
@@ -269,7 +272,7 @@ def scrapePlayers(dbName, season, league, update=1):
     c = conDB.cursor()
     
     # Table for basic player information
-    c.execute('CREATE TABLE IF NOT EXISTS Player{}_{}(Player_ID INTEGER PRIMARY KEY, \
+    c.execute('CREATE TABLE IF NOT EXISTS Player(Player_ID INTEGER PRIMARY KEY, \
                                                      FirstName TEXT, \
                                                      LastName TEXT, \
                                                      Team TEXT, \
@@ -279,10 +282,10 @@ def scrapePlayers(dbName, season, league, update=1):
                                                      Born TEXT, \
                                                      Height INT, \
                                                      Weight INT, \
-                                                     Nationality TEXT)'.format(league,season[2:]))
+                                                     Nationality TEXT)')
     
     # Table for player performance per gameday
-    c.execute('CREATE TABLE IF NOT EXISTS PlayerStats{}_{}(UQID INT PRIMARY KEY, \
+    c.execute('CREATE TABLE IF NOT EXISTS PlayerStats(UQID INT PRIMARY KEY, \
                                                      Player_ID INT, \
                                                      GameDay INT, \
                                                      Goals INT, \
@@ -326,12 +329,12 @@ def scrapePlayers(dbName, season, league, update=1):
         
         # write player_IDs from list into DB
         for ID in kickerIDlist:
-            c.execute('INSERT OR IGNORE INTO Player{}_{} (Player_ID) VALUES ({})'.format(league,season[2:], ID))       
+            c.execute('INSERT OR IGNORE INTO Player (Player_ID) VALUES ({})'.format(league,season[2:], ID))       
         conDB.commit()  
     
     # for updates, Player Table is searched for missing FirstNames and exisiting IDs
     elif update == 1:
-        for x in c.execute('SELECT Player_ID FROM Player{}_{} WHERE FirstName IS NULL'.format(league,season[2:])).fetchall():
+        for x in c.execute('SELECT Player_ID FROM Player WHERE FirstName IS NULL'.format(league,season[2:])).fetchall():
            kickerIDlist.append(str(x[0]))
     
     else:
@@ -390,7 +393,7 @@ def scrapePlayers(dbName, season, league, update=1):
         parseList = [x if x != '' else '\" \"' for x in parseList]
    
         
-        c.execute('UPDATE Player{}_{} SET FirstName="{}", \
+        c.execute('UPDATE Player SET FirstName="{}", \
                                           LastName="{}", \
                                           Team="{}", \
                                           POS="{}", \
@@ -449,7 +452,11 @@ def scrapePlayers(dbName, season, league, update=1):
                 # into another player ID by accident
                 UID = str(ID)+ "000" +str(gameDay)
                 
+<<<<<<< HEAD
                 c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}", "{}")'.format(
+=======
+                c.execute('INSERT OR IGNORE INTO PlayerStats VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}")'.format(
+>>>>>>> 719ffe5191b7e318d9ccf15aee442babe0c264bd
                                     league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
                                                         red, yelred, yellow, gotIn, gotOut, grade, gameID, gameURL, ha) )
                 conDB.commit()  
@@ -460,6 +467,94 @@ def scrapePlayers(dbName, season, league, update=1):
     driver.close()
     conDB.commit()
     conDB.close()
+
+
+
+def scrapePlayers2(dbName):
+        """
+        ScrapePlayers doesnt account for players that have left during the season
+        This function iterates through all IDs and saves information if the playerID exists
+        """  
+        
+        conDB = sqlite3.connect(dbName)
+        c = conDB.cursor()
+        
+        # create a table that stores PLayerIDs that are non existent
+        c.execute('CREATE TABLE IF NOT EXISTS NonPlayer (Player_ID INTEGER PRIMARY KEY)')
+        
+        # create a list of existing IDs and skip these
+        kickerIDlist = []
+        for x in c.execute('SELECT Player_ID FROM Player').fetchall():
+           kickerIDlist.append(str(x[0]))
+           
+        # also skip known non existing IDs
+        for x in c.execute('SELECT Player_ID FROM NonPlayer ').fetchall():
+            kickerIDlist.append(str(x[0]))
+        
+        for x in range(120000):
+            if str(x) not in  kickerIDlist:
+                URL = "http://manager.kicker.de/interactive/bundesliga/meinteam/spieleranalyse/spielerid/" + str(x)
+                
+                try:
+                    driver.get(URL) 
+                    BLrankHTLM = driver.page_source
+                    soup = BeautifulSoup(BLrankHTLM, "lxml")
+                    
+                    assert "Das von Ihnen angeforderte Dokument konnte nicht erstellt werden" not in BLrankHTLM    
+                    
+                    # Basic Info
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerVorname")
+                    firstName = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerNachname")    
+                    lastName = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblRueckenNr")
+                    backNumber = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellePos")
+                    position = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblAktuellerVerein")
+                    team = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGeborenAm")
+                    birthday = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    # the following uses a wildcard, as german ß is used, throwing errors for some players
+                    entry = soup.find(id=re.compile("ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGroe*e"))    
+                    height = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblGewicht")
+                    weight = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblNation")
+                    nation = entry.parent.parent.findNextSibling().text.strip()
+                    
+                    entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblMarktwert")
+                    worth = entry.parent.parent.findNextSibling().text.strip()
+                    worth = float( worth[:worth.find('Mio')-1].replace(',','.') )
+                    
+                    # put all into a list, check first if no variable is empty, if empty change to " "
+                    # otherwise SQL error is raised
+                    parseList = (x, firstName,lastName, team, position, backNumber, worth, birthday,height, weight)
+                    parseList = [t if t != '' else '\" \"' for t in parseList]
+               
+                    
+                    c.execute('INSERT OR IGNORE INTO Player VALUES ({}, "{}", "{}","{}","{}",{},{},"{}",{},{})'.format(*parseList) )
+                    
+                    conDB.commit()
+        
+                except AssertionError:
+                    # Update KeepTrack table and exit loop
+                    c.execute('INSERT OR IGNORE INTO NonPlayer VALUES ({})'.format(x) )
+                    conDB.commit()
+                    continue
+
+        driver.close()
+        conDB.commit()
+        conDB.close()
+
 
 
 
@@ -1014,11 +1109,12 @@ def calcPoints(UQID, league, season):
 #for x in range(1,32):
 #    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
+
 #scrapeTactics(dbName, season, league, 28)
-
-
   
 #scrapePoints(dbName,league,maxGD)
+
+ 
 
 #scrapeTactics(dbName, season, league, 1)
  
