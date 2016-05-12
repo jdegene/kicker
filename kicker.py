@@ -16,10 +16,10 @@ season = '2015'
 league = '1'
 
 # Last played GameDay
-maxGD = 31
+maxGD = 33
 
 # Database filepath
-dbName = 'D:/Test/kicker_db/kicker_sub1.sqlite'
+dbName = 'D:/Test/kicker_x_db/kicker_main_2.sqlite'
 
 
 #############################
@@ -38,7 +38,7 @@ conDB = sqlite3.connect(dbName)
 c = conDB.cursor()
 
 # The following steps are only necessary once, though running them again does no harm
-if dbExists == 1:
+if dbExists == 0:
 
     # create table to store Manager ID (as primary key) and Manager Name as Text
     c.execute('CREATE TABLE IF NOT EXISTS Manager(Manager_ID INTEGER PRIMARY KEY, Manager_Name TEXT)')
@@ -225,7 +225,8 @@ def scrapePoints(dbName,league,maxGD):
                         colName = 'GD' + str(Spieltag)
                         # write Manager's point of respective GameDay in pointTblName
                         c.execute('UPDATE ' + pointTblName + ' SET ' + colName + '=? WHERE Manager_ID = ?', (kickerPoints, kickerID))
-                        conDB.commit()
+            
+                conDB.commit()
           
             except AssertionError:
                 # Update KeepTrack table and exit loop
@@ -296,7 +297,8 @@ def scrapePlayers(dbName, season, league, update=1):
                                                      Grade REAL, \
                                                      Points INT, \
                                                      GameID INT, \
-                                                     GameURL TEXT)'.format(league,season[2:]))
+                                                     GameURL TEXT, \
+                                                     HA TEXT)'.format(league,season[2:]))
     
     
     
@@ -338,6 +340,7 @@ def scrapePlayers(dbName, season, league, update=1):
     
     # Acces each players stats site
     for ID in kickerIDlist:
+        ID = 64040
         if league == '1':
             PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
         elif league == '2':
@@ -433,8 +436,10 @@ def scrapePlayers(dbName, season, league, update=1):
                 
                 grade = gotOutTag.findNext().text.replace("-","0").replace(',','.')   
                 
+                ha = gotOutTag.findNext().findNext().findNext().findNext().text.replace("-","0").replace(',','.')
+                
                 #result = gotOutTag.findNext().findNext().findNext().findNext().findNext().text.replace('\xa0', "")
-                #resultTag = gotOutTag.findNext().findNext().findNext().findNext().findNext()
+                resultTag = gotOutTag.findNext().findNext().findNext().findNext().findNext()
                 
                 gameURL = resultTag.findNext().findChild().get('href')
                 
@@ -445,9 +450,9 @@ def scrapePlayers(dbName, season, league, update=1):
                 # into another player ID by accident
                 UID = str(ID)+ "000" +str(gameDay)
                 
-                c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}")'.format(
+                c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}", "{}")'.format(
                                     league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
-                                                        red, yelred, yellow, gotIn, gotOut, grade, gameID, gameURL) )
+                                                        red, yelred, yellow, gotIn, gotOut, grade, gameID, gameURL, ha) )
                 conDB.commit()  
             
         except:
@@ -732,7 +737,7 @@ def scrapeTactics(dbName, season, league, Spieltag):
         
     # Update KeepTrack after successful scraping
     #c.execute('UPDATE KeepTrack SET Man{}_{}=1 WHERE rowid = "{}"'.format(league,season[2:],Spieltag) )
-    
+    print(Spieltag, " finished")
     driver.close()
     conDB.commit()
     conDB.close()
@@ -842,7 +847,7 @@ def dlPic(league, season):
     
     for plID in cleanList:    
         
-        firstName = c.execute('SELECT FirstName FROM Player{}_{} WHERE Player_ID={}'.format(league,season[2:],plID) ).fetchone()[0]
+        firstName = c.execute('SELECT FirstName FROM Player{}_{} WHERE Player_ID={}'.format(league, season,plID) ).fetchone()[0]
         lastName = c.execute('SELECT LastName FROM Player{}_{} WHERE Player_ID={}'.format(league,season[2:],plID) ).fetchone()[0]
         
         # Define URL for each Manager/league/Day combination
@@ -909,17 +914,91 @@ def mergeDBs(mainDB, secDB, tblName):
 ############################### Others  #################################################
 ######################################################################################### 
 
-#def calcPoints(grade, goals, red, yelred, assist, bgin, mvp, plIn, zeroG):
-#    """
-#    calculate the points a player gained by using his grade, score etc.
-#    """
+
+
+def calcPoints(UQID, league, season):
+    """
+    calculate the points a player gained by using his grade, score etc.
+    UQID is the unique ID in PlayerStats composed of PlayerID+000+Gameday
+    """
+    
+    
+    # Dictionary with Grades and related Points, grades are keys
+    gradeDict = {1.0:10, 1.5:8, 2.0:6, 2.5:4, 3.0:2, 3.5:0, 4.0:-2, 4.5:-4, 5.0:-6, 5.5:-8, 6.0:-10}
+    
+    # Dictionary Points for Goals related to poisiion, positions are keys
+    goalDict = {'Torwart':6, 'Abwehr':5,'Mittelfeld':4,'Sturm':3}
+       
+    # PlayerStats query (related to gameday)
+    Uq = c.execute("SELECT * FROM PlayerStats{}_{} WHERE UQID={}".format(league, season[2:], UQID)).fetchone()
+    
+    # Player query (related to general info), get PlayerID from Uq
+    Pq =  c.execute("SELECT * FROM Player WHERE Player_ID={}".format(Uq[1])).fetchone()
+    
+    # Game query (related to game info), get GameID from Uq
+    Gq =  c.execute("SELECT * FROM Games WHERE GameID={}".format(Uq[14])).fetchone()
+    
+    
+    
+    totP = 0 # Var to store all points
+    
+    # Played from beginning and got a grade?
+    if Uq[12] > 0:                          
+        totP = totP + 2                     # played from start
+        totP = totP + gradeDict[Uq[12]]     # points for grade
+    else:
+        totP = totP + 1                     # got changed in
+    
+    # Scored Goals?
+    if Uq[3] > 0:
+        totP = totP + Uq[3] * goalDict(Pq[4])
+    
+    # Assisted?
+    if Uq[5] > 0:
+        totP = totP + Uq[5]
+        
+    # Got red or red-yellow card?
+    if Uq[7] > 0:
+        totP = totP - 6
+    if Uq[8] > 0:
+        totP = totP - 3
+    
+    # Goalkeeper :0
+    if Pq[4] == 'Torwart':
+        
+        if Uq[16] == 'A':   # A means goalie is from visiting team
+            if Gq[4][:Gq[4].find(':')] == '0':
+                totP = totP + 2
+        else:                                           # goalie is from home team
+            if Gq[4][Gq[4].find(':') + 1 :] == '0':
+                totP = totP + 2
+    
+    # Player is player of the game
+    if Gq[5] == Uq[1]:
+        totP = totP + 3
+    
+    print(totP)
+            
+    
+    
+    
     
 
-# Get count of existing entries
+
+
+# Get count of exisiting entries
+
+#dbName2 = 'D:/Test/kicker_x_db/kicker_main.sqlite'
+#conDB2 = sqlite3.connect(dbName2)
+#d = conDB2.cursor()  
+#
 #myList = []
 #for x in range(1,35):
-#    myQuery = c.execute("SELECT * FROM Tactics1_15 WHERE GameDay = {}".format(x)).fetchall()
-#    myList.append(len(myQuery))
+#    liste = d.execute('SELECT Manager_ID FROM Tactics1_15 WHERE GameDay='+str(x) ).fetchall()
+#    myList.append(len(liste))
+#for x,y in enumerate(myList):
+#    print(x+1,y)
+#conDB2.close()
 
     
 #########################################################################################
@@ -929,7 +1008,7 @@ def mergeDBs(mainDB, secDB, tblName):
 ######################################################################################### 
 
   
-#mergeDBs('D:/Test/kicker_x_db/kicker_main.sqlite', 'D:/Test/kicker_db/kicker_sub1.sqlite', 'Tactics1_15')
+#mergeDBs('D:/Test/kicker_x_db/kicker_main.sqlite', 'D:/Test/kicker_db/kicker_sub5.sqlite', 'Tactics1_15')
  
  
  
@@ -937,22 +1016,21 @@ def mergeDBs(mainDB, secDB, tblName):
 #for x in range(1,32):
 #    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
+#scrapeTactics(dbName, season, league, 28)
+
 
   
 #scrapePoints(dbName,league,maxGD)
-  
-scrapeTactics(dbName, season, league, 1)
+
+#scrapeTactics(dbName, season, league, 1)
  
-#scrapePlayers(dbName, season, league, update=0)
+scrapePlayers(dbName, season, league, update=0)
    
    
 #scrapeGames(season, league)   
-   
+ 
 
-#myList = []
-#for x in range(1,32):
-#    liste = c.execute('SELECT Manager_ID FROM Tactics2_15 WHERE GameDay='+str(x) ).fetchall()
-#    myList.append(len(liste))
+
    
 
    
