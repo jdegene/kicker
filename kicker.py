@@ -451,12 +451,9 @@ def scrapePlayers(dbName, season, league, update=1):
                 # Unique ID as a combination of player ID and gameday, 000 added to avoid mapping
                 # into another player ID by accident
                 UID = str(ID)+ "000" +str(gameDay)
-                
-<<<<<<< HEAD
-                c.execute('INSERT OR IGNORE INTO PlayerStats{}_{} VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}", "{}")'.format(
-=======
+
                 c.execute('INSERT OR IGNORE INTO PlayerStats VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}")'.format(
->>>>>>> 719ffe5191b7e318d9ccf15aee442babe0c264bd
+
                                     league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
                                                         red, yelred, yellow, gotIn, gotOut, grade, gameID, gameURL, ha) )
                 conDB.commit()  
