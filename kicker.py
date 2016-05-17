@@ -16,11 +16,11 @@ season = '2015'
 league = '1'
 
 # Last played GameDay
-maxGD = 33
+maxGD = 34
 
 # Database filepath
 
-dbName = 'D:/Test/kicker_x_db/kicker_main_2.sqlite'
+dbName = 'D:/Test/kicker_x_db/kicker_main.sqlite'
 
 
 
@@ -265,6 +265,7 @@ def scrapePlayers(dbName, season, league, update=1):
     
      :update: is a flag, that determines if all players should be scraped from scratch (0)
         or if only those with missing names but existing IDs are tried to be fetched (again) (1)
+        (2) can be used if PlayerStats is empty and should be refilled
         1 = default
     """  
 
@@ -337,21 +338,33 @@ def scrapePlayers(dbName, season, league, update=1):
         for x in c.execute('SELECT Player_ID FROM Player WHERE FirstName IS NULL'.format(league,season[2:])).fetchall():
            kickerIDlist.append(str(x[0]))
     
+    # Just use all exisiting PlayerIDs from "Player"
+    elif update == 2:
+            IDtuples = c.execute('SELECT Player_ID FROM Player'.format(league,season[2:])).fetchall()
+            kickerIDlist = [x[0] for x in IDtuples if x[0]!=0]
+    
     else:
-        print('Update must be 0 or 1')
+        print('Update must be 0 or 1 or 2')
        
     
-    # Acces each players stats site
+    # Acces each players stats site    
     for ID in kickerIDlist:
-        if league == '1':
-            PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
-        elif league == '2':
-            PlayerURL = 'http://manager.kicker.de/interactive/2bundesliga/spieleranalyse/spielerid/{}'.format(ID)
-        #print(PlayerURL)
-        driver.get(PlayerURL) 
-        BLrankHTLM = driver.page_source
-        soup = BeautifulSoup(BLrankHTLM, "lxml")
         
+        # try to access player page in 1.BL, if error is raised, open player page in 2.BL
+        try:
+            PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID) 
+            driver.get(PlayerURL) 
+            BLrankHTLM = driver.page_source
+            soup = BeautifulSoup(BLrankHTLM, "lxml")
+            
+            assert "Das von Ihnen angeforderte Dokument konnte nicht erstellt werden" not in BLrankHTLM
+       
+        except AssertionError:
+            PlayerURL = 'http://manager.kicker.de/interactive/2bundesliga/spieleranalyse/spielerid/{}'.format(ID)
+            driver.get(PlayerURL) 
+            BLrankHTLM = driver.page_source
+            soup = BeautifulSoup(BLrankHTLM, "lxml")
+            
         
         # Basic Info
         entry = soup.find(id="ctl00_PlaceHolderContent_ctrlSpielerSteckbrief_LblSpielerVorname")
@@ -388,10 +401,10 @@ def scrapePlayers(dbName, season, league, update=1):
         
         # put all into a list, check first if no variable is empty, if empty change to " "
         # otherwise SQL error is raised
-        parseList = (league, season[2:], firstName, lastName, team, position, backNumber, 
+        parseList = (firstName, lastName, team, position, backNumber, 
                      worth, birthday, height, weight, nation, ID)
         parseList = [x if x != '' else '\" \"' for x in parseList]
-   
+        
         
         c.execute('UPDATE Player SET FirstName="{}", \
                                           LastName="{}", \
@@ -452,9 +465,8 @@ def scrapePlayers(dbName, season, league, update=1):
                 # into another player ID by accident
                 UID = str(ID)+ "000" +str(gameDay)
 
-                c.execute('INSERT OR IGNORE INTO PlayerStats VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}")'.format(
-
-                                    league, season[2:], UID, ID, gameDay, goals, elfer, assists, scorer,
+                c.execute('INSERT OR IGNORE INTO PlayerStats VALUES ({}, {}, {}, {}, "{}", {}, {}, {}, {}, {}, {}, {}, {}, NULL, {}, "{}","{}")'.format(
+                                    UID, ID, gameDay, goals, elfer, assists, scorer,
                                                         red, yelred, yellow, gotIn, gotOut, grade, gameID, gameURL, ha) )
                 conDB.commit()  
             
@@ -736,6 +748,8 @@ def scrapeTactics(dbName, season, league, Spieltag):
     If gameday was not finished: will pick up unfinished Managers during gameday
     """
     
+    print(Spieltag, " started")
+    
     # Overwrite dbname, should be off by default
     #dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
     
@@ -849,10 +863,10 @@ def scrapeGames(season, league):
     c = conDB.cursor()
     
     # get all URLs from PlayerStats
-    URLlist = [x[0] for x in c.execute('SELECT GameURL FROM PlayerStats{}_{}'.format(league,season[2:])).fetchall()]
+    URLlist = [x[0] for x in c.execute('SELECT GameURL FROM PlayerStats').fetchall()]
     
     # get all existing URLs from Games
-    exURLlist = [x[0] for x in c.execute('SELECT GameURL FROM Games'.format(league,season[2:])).fetchall()]
+    exURLlist = [x[0] for x in c.execute('SELECT GameURL FROM Games').fetchall()]
     
     # unique URl list -> double entries are thrown out
     uniqueURLs = list(set(URLlist)-set(exURLlist))
@@ -888,6 +902,12 @@ def scrapeGames(season, league):
             
             mvpLink = soup.find('div', attrs={'class':'spldesspiels'}).findNext('a').get('href')
             MVP = mvpLink[ mvpLink.rfind('/', 0, mvpLink.rfind('/')) + 1  :  mvpLink.rfind('/') ]
+            
+            leagueURL = curURL[curURL.find('bundesliga')-1 : curURL.find('bundesliga')]
+            if leagueURL == '2':
+                league = 2
+            else:
+                league = 1
         
     
             gameID = curURL[curURL.rfind('/', 0, curURL.rfind('/spielanalyse')) + 1  : curURL.rfind('/spielanalyse')]
@@ -1007,7 +1027,7 @@ def mergeDBs(mainDB, secDB, tblName):
 
 
 
-def calcPoints(UQID, league, season):
+def calcPoints(UQID):
     """
     calculate the points a player gained by using his grade, score etc.
     UQID is the unique ID in PlayerStats composed of PlayerID+000+Gameday
@@ -1020,7 +1040,7 @@ def calcPoints(UQID, league, season):
     goalDict = {'Torwart':6, 'Abwehr':5,'Mittelfeld':4,'Sturm':3}
        
     # PlayerStats query (related to gameday)
-    Uq = c.execute("SELECT * FROM PlayerStats{}_{} WHERE UQID={}".format(league, season[2:], UQID)).fetchone()    
+    Uq = c.execute("SELECT * FROM PlayerStats WHERE UQID={}".format(UQID)).fetchone()    
     # Player query (related to general info), get PlayerID from Uq
     Pq =  c.execute("SELECT * FROM Player WHERE Player_ID={}".format(Uq[1])).fetchone()    
     # Game query (related to game info), get GameID from Uq
@@ -1041,7 +1061,7 @@ def calcPoints(UQID, league, season):
     
     # Scored Goals?
     if Uq[3] > 0:
-        totP = totP + Uq[3] * goalDict(Pq[4])
+        totP = totP + Uq[3] * goalDict[Pq[4]]
     
     # Assisted?
     if Uq[5] > 0:
@@ -1067,10 +1087,19 @@ def calcPoints(UQID, league, season):
     if Gq[5] == Uq[1]:
         totP = totP + 3
     
-    print(totP)
+    return(totP)
+    
             
-    
-    
+
+        
+ #Add points to empty Points Column
+#UQlist = c.execute("SELECT UQID FROM PlayerStats").fetchall()
+#UQlist2 = [x[0] for x in UQlist]
+#for UQID in UQlist2:
+#    #print (UQID)
+#    p = calcPoints(UQID)
+#    c.execute('UPDATE PlayerStats SET Points={} WHERE UQID={}'.format(p,UQID))
+#conDB.commit()
     
     
 
@@ -1106,16 +1135,15 @@ def calcPoints(UQID, league, season):
 #for x in range(1,32):
 #    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
+#scrapeTactics(dbName, season, league, 34)
 
-#scrapeTactics(dbName, season, league, 28)
-  
 #scrapePoints(dbName,league,maxGD)
 
  
 
 #scrapeTactics(dbName, season, league, 1)
  
-#scrapePlayers(dbName, season, league, update=0)
+scrapePlayers(dbName, season, league, update=2)
    
    
 #scrapeGames(season, league)   
