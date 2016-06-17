@@ -71,9 +71,13 @@ def plyrFind(xTup, df):
     filtered = df[df["Points"] == xTup[0]][df["Mio"] == xTup[1]]
     
     #remove all colums except the Player_ID and convert it to list
-    outList = filtered["Player_ID"].values.tolist()
+    outIDList = filtered["Player_ID"].values.tolist()
     
-    return outList
+    #remove all colums except the First and Lastname and convert it to list
+    nameList = filtered[["FirstName", "LastName"]].values.tolist()
+    outNameList = [x[0] + " " + x[1] for x in nameList]
+    
+    return outIDList, outNameList
 
 
 ##########################################################################################
@@ -149,3 +153,82 @@ def knapsack(items, maxweight):
             j -= items[i - 1][1]
     result.reverse()
     return bestvalue(len(items), maxweight), result
+    
+    
+def knapsack2(capacity, value, weight, maxitems):
+    """
+    Originally from: https://gist.github.com/Phovox/127e5923660d60fb7924
+    
+    solve the 3d-knapsack problem specified in its parameters: capacity is the
+    overall capacity of the knapsack and the ith position of the arrays value
+    and weight specify the value and weight of the ith item. This is called the
+    3d-knapsack not because it refers to a cuboid but because it also considers
+    a maximum number of items to insert which is given in the last parameter
+    """
+
+
+    # initialization - the number of items is taken from the length of any array
+    # which shall have the same length
+    nbitems = len (value)
+
+    # we use dynamic programming to solve this problem. Thus, we'll need a table
+    # that contains (N, M) cells where 0<=N<=capacity and 0<=M<=nbitems
+    table=dict ()
+    
+    # initialize the contents of the dictionary for all capacities and number of
+    # items to another dictionary which returns 0 by default
+    for icapacity in range (0, 1+capacity):
+        table [icapacity]=dict ()
+        for items in range (0, 1+nbitems):
+            table [icapacity][items] = collections.defaultdict (int)
+
+    # now we are ready to start, ... for the first j items
+    for j in range (0, nbitems):
+
+        # for all capacities ranging from 1 to the maximum overall capacity
+        for i in range (1, 1+capacity):
+
+            # and for all cardinalities of items from 1 until the maximum
+            # allowed
+            for k in range (1, 1+maxitems):
+
+                # if this item can not be inserted
+                if (weight [j] > i):
+                    table [i][1+j][k] = table [i][j][k]   # just do not add it
+                    
+                # otherwise, consider inserting it
+                else:
+                    
+                    # if this is item is known to fit the knapsack (because its
+                    # weight does not exceed the current capacity and adding it
+                    # creates a set with a cardinality less or equal than the
+                    # cardinality currently considered), then compute the
+                    # optimal value as usual but considering sets of the same
+                    # cardinality (k)
+                    if (j<k):
+                        table [i][1+j][k] = max (table[i][j][k],
+                                                 table[i-weight[j]][j][k]+value[j])
+
+                    else:
+                        prev = []
+
+                        # retrieve the optimal solution for all values of
+                        # (i-weight[j], kappa [0 .. j-1], k-1)
+                        for kappa in range (0, 1+j):
+                            prev.append (table[i-weight[j]][kappa][k-1])
+
+                        # and consider inserting this item taking into account
+                        # the optimal solution from the preceding cardinality
+                        # considering all sets of items
+                        table [i][1+j][k] = max (table[i][j][k],
+                                                 max (prev) + value[j])
+                    
+    # return the table computed so far
+    return table
+    
+
+
+    
+    
+    
+    
