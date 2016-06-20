@@ -6,6 +6,8 @@ import pandas as pd
 import collections
 import functools
 
+import datetime
+
 import sys
 sys.setrecursionlimit(10000)
 
@@ -171,6 +173,8 @@ def knapsack2(capacity, plList, maxitems):
     a maximum number of items to insert which is given in the last parameter
     """
     
+    startTime = datetime.datetime.now()
+    
     # the original function was changed to accept 1 list of player (value weight) tuples
     # to conform with the original script, it is split up into 2 lists again
     value = []
@@ -235,7 +239,9 @@ def knapsack2(capacity, plList, maxitems):
                         # considering all sets of items
                         table [i][1+j][k] = max (table[i][j][k],
                                                  max (prev) + value[j])
-                    
+    
+    timeSpent = datetime.datetime.now() - startTime
+    print("Process took ", timeSpent.seconds,"s to finish a list of ", len(plList), " items and item limit of ", maxitems)               
     # return the table computed so far
     return table
     
@@ -281,12 +287,17 @@ def backtrace(table, plList):
         # returns 5 if the player is the 5th player in the original list
         for j in range(xLen-1,0,-1):
             if table[yLen-1][j][curItem] != table[yLen-1][j-1][curItem]:
-                addItem = j
+                #addItem = j
                 xLen -= 1
+                print(table[yLen-1][j][curItem])
                 break
-        
-        optList.append(plList[addItem-1]) #add player to list of optimal players
-        yLen = yLen - plList[addItem-1][1] # new max value is old p minus the weight of added player
+
+        optList.append(plList[j-1]) #add player to list of optimal players
+
+        yLen = yLen - plList[j-1][1] # new max value is old p minus the weight of added player
+
+    
+    
     
     totWeight = sum([x[1] for x in optList])
     
