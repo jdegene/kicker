@@ -286,18 +286,15 @@ def backtrace(table, plList):
         #find the player in the current table/z-level that first introduced the value
         # returns 5 if the player is the 5th player in the original list
         for j in range(xLen-1,0,-1):
+            xLen -= 1
             if table[yLen-1][j][curItem] != table[yLen-1][j-1][curItem]:
-                #addItem = j
-                xLen -= 1
-                print(table[yLen-1][j][curItem])
+                #addItem = j  
                 break
 
         optList.append(plList[j-1]) #add player to list of optimal players
-
+        
         yLen = yLen - plList[j-1][1] # new max value is old p minus the weight of added player
-
-    
-    
+      
     
     totWeight = sum([x[1] for x in optList])
     
