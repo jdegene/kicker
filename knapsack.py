@@ -57,6 +57,9 @@ pL2list = [tuple([int(x[1]),x[0]]) for x in pL2list]
 uniquePlayers1 = list(set(pL1list))
 uniquePlayers2 = list(set(pL2list))
 
+# convert floating point weights/worth into integer by multiplying them with 100
+uniquePlayers1Int = [tuple([x[0], int(x[1]*100) ]) for x in uniquePlayers1]
+uniquePlayers2Int = [tuple([x[0], int(x[1]*100) ]) for x in uniquePlayers2]
 
 
 ##########################################################################################
