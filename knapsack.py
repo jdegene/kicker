@@ -155,9 +155,11 @@ def knapsack(items, maxweight):
     return bestvalue(len(items), maxweight), result
     
     
-def knapsack2(capacity, value, weight, maxitems):
+def knapsack2(capacity, plList, maxitems):
     """
     Originally from: https://gist.github.com/Phovox/127e5923660d60fb7924
+    
+    plList is a list of (value, weight) tuples representing each player
     
     solve the 3d-knapsack problem specified in its parameters: capacity is the
     overall capacity of the knapsack and the ith position of the arrays value
@@ -165,7 +167,15 @@ def knapsack2(capacity, value, weight, maxitems):
     3d-knapsack not because it refers to a cuboid but because it also considers
     a maximum number of items to insert which is given in the last parameter
     """
-
+    
+    # the original function was changed to accept 1 list of player (value weight) tuples
+    # to conform with the original script, it is split up into 2 lists again
+    value = []
+    weight = []
+    for item in plList:
+        value.append(item[0])
+        weight.append(item[1])
+    
 
     # initialization - the number of items is taken from the length of any array
     # which shall have the same length
@@ -228,6 +238,60 @@ def knapsack2(capacity, value, weight, maxitems):
     
 
 
+def backtrace(table, plList):
+    """
+    uses the return table from knapsack2(), and traces backwards to determine the involved players
+    plList is the same list that is fed to knapsack2()
+    
+    returns maximum possible points/value, the weight of the optimal combination, of how many items
+    the solution exists and a list of all used (value, weight) items
+    """
+    
+    yLen = len(table)           # length of y-axis, = budget or weight levels
+    xLen = len(table[0])        # length of x-axis, = amount of total players to choose from
+    zLen = len(table[0][0])     # length of z-axis, = max number of items
+    
+    maxAbsVal = table[yLen-1][xLen-1][zLen-1] # maximum possible value
+    
+    if maxAbsVal == 0:
+        return([0,0,[]])
+    
+    optList = []    # list that will store the 
+    
+    # check if the maximum number of players is exactly hit, or if the optimal solutio consists
+    # of a smaller number of players.
+    # if for max y and max x axis the value for max-allowed player is the same as for max-1
+    # the full number of players/items is not necessary
+    # This loop determines for how many players the optimal soultion was found
+    # returns 2 if the optimal solution consists of 2 players
+    for i in range(zLen-1,0,-1):
+        if table[yLen-1][xLen-1][i] != table[yLen-1][xLen-1][i-1]:
+            optNum = i
+            break
+    
+    # now check where the value for this optimal number of players came from
+    # option a) from the same table but from the player before (the standard way with unlimited number of items allowed)
+    # or b) the current player/item was included because its the best solution for 
+    for curItem in range(optNum,0,-1):
+         
+        #find the player in the current table/z-level that first introduced the value
+        # returns 5 if the player is the 5th player in the original list
+        for j in range(xLen-1,0,-1):
+            if table[yLen-1][j][curItem] != table[yLen-1][j-1][curItem]:
+                addItem = j
+                xLen -= 1
+                break
+        
+        optList.append(plList[addItem-1]) #add player to list of optimal players
+        yLen = yLen - plList[addItem-1][1] # new max value is old p minus the weight of added player
+    
+    totWeight = sum([x[1] for x in optList])
+    
+    return(maxAbsVal, totWeight, len(optList) ,optList)
+    
+    
+    
+    
     
     
     
