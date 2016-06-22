@@ -37,6 +37,13 @@ conDB = sqlite3.connect(dbName)
 dfPlayer = pd.read_sql_query("SELECT * from Player", conDB)
 dfPlyStats = pd.read_sql_query("SELECT * from PlayerStats", conDB)
 
+# Load Points into dataframe
+dfBL = pd.read_sql_query("SELECT * from BL1_15", conDB)
+
+# calculate the sums of columns 1:35 (i.e. all gamedays) add it to new column 'Sum', sort by 'Sum' descending
+dfBL['Sum'] = dfBL.iloc[:,1:35].sum(axis=1).sort("Sums", ascending=False)
+
+
 # points per player by grouping and summing, as_index prevents using ID as index (needed for join)
 pSums = dfPlyStats.groupby('Player_ID', as_index=False)['Points'].sum()
 
@@ -59,15 +66,55 @@ pL2list = [tuple([int(x[1]),x[0]]) for x in pL2list]
 uniquePlayers1 = list(set(pL1list))
 uniquePlayers2 = list(set(pL2list))
 
+
+
+##########################################################################################
+
+# Convert a list of tuples with the second element a float into int by multiplying 2nd element by 10
+def forwConv(tupList):
+    returnList = [tuple([x[0], int(x[1]*10) ]) for x in tupList]
+    return returnList
+
+# Convert a list of tuples with the second element *10 higher than original back to original value
+def backConv(tupList):
+    returnList = [tuple([x[0], round( float(x[1]/10), 1)]) for x in tupList]
+    return returnList
+
+# converts only 1 tuple
+def backConv1(tup):
+    returnTup = tuple([tup[0], round( float(tup[1]/10), 1) ])
+    return returnTup
+
+##########################################################################################
+
+
+
 # convert floating point weights/worth into integer by multiplying them with 100
-uniquePlayers1Int = [tuple([x[0], int(x[1]*100) ]) for x in uniquePlayers1]
-uniquePlayers2Int = [tuple([x[0], int(x[1]*100) ]) for x in uniquePlayers2]
+pL1listInt = forwConv(pL1list)
+pL2listInt = forwConv(pL2list)
+uniquePlayers1Int = forwConv(uniquePlayers1)
+uniquePlayers2Int = forwConv(uniquePlayers2)
+
+
+
+##########################################################################################
+# ID is a player ID, it returns a (value,weight) tuple for that player
+##########################################################################################
+
+def buildTups(ID):
+    
+    mio = pSmerge[pSmerge["Player_ID"] == ID]["Mio"].values
+    points = pSums[pSums["Player_ID"] == ID]["Points"].values
+    
+    return tuple([points.item(), mio.item()])
+
+
 
 
 ##########################################################################################
 # Find players by their value/points combination
-# xTup is a tuple (points, value), df the dataframe to look in for player data
-# reutrns a list of player ID's fitting the search
+# xTup is a tuple (points, value), df the dataframe to look in for player data (pSmerge)
+# returns a list of player ID's fitting the search
 ##########################################################################################
 
 def plyrFind(xTup, df):
@@ -83,6 +130,8 @@ def plyrFind(xTup, df):
     outNameList = [x[0] + " " + x[1] for x in nameList]
     
     return outIDList, outNameList
+
+
 
 
 ##########################################################################################
@@ -299,6 +348,141 @@ def backtrace(table, plList):
     totWeight = sum([x[1] for x in optList])
     
     return(maxAbsVal, totWeight, len(optList) ,optList)
+    
+
+
+def backtrace2(table, plList, weight, maxItems):
+    """
+    similar to backtrace(), but it won't start at the maximum points, but at a specified 
+    location. This is useful when you're not interested in the best value, but if you have
+    to consider other tables as well (see posTable() and tracePos())
+    """
+    
+    yLen = weight+1          # length of y-axis, = maximum weight to consider
+    xLen = len(table[0])        # length of x-axis, = amount of total players to choose from
+    zLen = maxItems+1     # length of z-axis, = max number of items to consider
+    
+    maxAbsVal = table[yLen-1][xLen-1][zLen-1] # maximum possible value
+    
+    if maxAbsVal == 0:
+        return([0,0,[]])
+    
+    optList = []    # list that will store the 
+    
+    # check if the maximum number of players is exactly hit, or if the optimal solution consists
+    # of a smaller number of players.
+    # if for max y and max x axis the value for max-allowed player is the same as for max-1
+    # the full number of players/items is not necessary
+    # This loop determines for how many players the optimal soultion was found
+    # returns 2 if the optimal solution consists of 2 players
+    for i in range(zLen-1,0,-1):
+        if table[yLen-1][xLen-1][i] != table[yLen-1][xLen-1][i-1]:
+            optNum = i
+            break
+    
+    # now check where the value for this optimal number of players came from
+    # option a) from the same table but from the player before (the standard way with unlimited number of items allowed)
+    # or b) the current player/item was included because its the best solution for 
+    for curItem in range(optNum,0,-1):
+         
+        #find the player in the current table/z-level that first introduced the value
+        # returns 5 if the player is the 5th player in the original list
+        for j in range(xLen-1,0,-1):
+            xLen -= 1
+            if table[yLen-1][j][curItem] != table[yLen-1][j-1][curItem]:
+                #addItem = j  
+                break
+
+        optList.append(plList[j-1]) #add player to list of optimal players
+        
+        yLen = yLen - plList[j-1][1] # new max value is old p minus the weight of added player
+      
+    
+    totWeight = sum([x[1] for x in optList])
+    
+    return(maxAbsVal, totWeight, len(optList) ,optList)
+
+##########################################################################################
+# Returns a knapsack2() table only for players of a certain position
+# position can be one of the following: 'Torwart', 'Abwehr', 'Mittelfeld', 'Sturm'
+# league can be 1 or 2 (integer)
+# capacity, maxItems are the same as for knapsack()
+##########################################################################################    
+
+def posTable(position, league, capacity, maxItems):
+    
+    # return a list of player ID's on that position
+    if league == 1:
+        posList = pL1[pL1.POS == position]["Player_ID"].values.tolist()
+    else:
+        posList = pL2[pL2.POS == position]["Player_ID"].values.tolist()
+    
+    # create a list of value,weight tuples
+    valList = [buildTups(x) for x in posList]
+    
+    # get rid of floats in valList
+    feedList = forwConv(valList)
+    
+    t = knapsack2(capacity, feedList, maxItems)
+    
+    return(t, feedList)
+    
+
+
+##########################################################################################
+# examines the best possible combination from the 4 tables from posTable() and returns it
+##########################################################################################    
+    
+def tracePos(torTable, abwTable, mitTable, stuTable):
+    
+    maxPoints = 0
+    
+    tactics = [(3,4,3), (3,5,2), (4,5,1), (4,4,2), (4,3,3)]
+    
+    # determine minimum and maximum goalie cost, so not the full budget span is iterated over
+    for torLen in range(len(torTable)-1,-1,-1):
+        if torTable[torLen][len(torTable[1])-1][1] != torTable[torLen-1][len(torTable[1])-1][1]:
+            torMax = torLen
+            break
+    for torLen in range(len(torTable)-1):
+        if torTable[torLen][len(torTable[1])-1][1] != 0:
+            torMin = torLen
+            break
+        
+    
+    for tactic in tactics:
+    
+        # iterate over all budget levels possible for goalie
+        for wg in range(torMin,torMax+1):
+            
+            # maximum points possible for current budget, torPoints will store the maximum points
+            # for goalies
+            torPoints = torTable[wg][len(torTable[1])-1][1]
+            
+            # iterate over the remaining budget for the defenders
+            for wd in range(len(torTable)-wg):
+                defPoints = abwTable[wd][len(abwTable[1])-1][tactic[0]]
+            
+                # iterate over the remaining budget for the midfielders
+                for wm in range(len(torTable)-wd-wg):
+                    midPoints = mitTable[wm][len(mitTable[1])-1][tactic[1]]
+                        
+                    # don't iterate through all possible, only the one remaining is enough
+                    restBudget = len(torTable)-wm-wd-wg
+                    scoPoints = stuTable[restBudget-1][len(stuTable[1])-1][tactic[2]]
+                    
+                    sumPoints = torPoints + defPoints  + midPoints + scoPoints 
+                        
+                    if sumPoints > maxPoints:
+                        maxPoints = sumPoints
+                        maxList = tuple([wg,wd,wm,restBudget-1])
+                        theTactic = tactic
+    
+    return [maxPoints, maxList, theTactic]
+        
+    
+    
+    
     
     
     
