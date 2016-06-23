@@ -527,5 +527,65 @@ def tracePos22(torTable, abwTable, mitTable, stuTable):
                     
     return [maxPoints, maxList, theTactic]        
     
+ 
+   
+##########################################################################################
+# Returns the maximum points that can be achieved by the player lists fed into
+#  input lists should contain player ID's as integer [2546871,2158484,124478...]
+########################################################################################## 
+def optimal22(goaList, defList, midList, scoList):
+    
+    tactics = [(3,4,3), (3,5,2), (4,5,1), (4,4,2), (4,3,3)]
+    
+    # These lists will store a list per ID with points per GD
+    goalPlist, defPlist, midPlist, scoPlist = ([] for i in range(4))
+    
+    # get for every player ID a list of of points for each GameDay
+    for curList, writeList in zip([goaList, defList, midList, scoList],[goalPlist, defPlist, midPlist, scoPlist]):
+        for curID in curList:
+            
+            # returns a list where each item consists of [GameDay, Points]
+            gdPoints = dfPlyStats[dfPlyStats["Player_ID"]==curID][['GameDay','Points']].values.tolist()
+            plyList = []
+            
+            for i in range(1, 35):
+                if i in [x[0] for x in gdPoints]: # check if gameday was played
+                    for j in gdPoints:            # then find gd and add it to list
+                        if j[0] == i:
+                            plyList.append(j[1])
+                else:                              # if not played insert 0
+                    plyList.append(0)
+                          
+            # this would be a much more efficient solution, but it fails with an IndexError in Python 3.4
+            # if run in code, but succeeds if run standlone in console
+            #j = 1
+            #for i in range(1,35):
+            #    if gdPoints[i-j][0] == i:
+            #        plyList.append(gdPoints[i-j][1])
+            #    else:
+            #        plyList.append(0)
+            #        j += 1
+                
+            writeList.append(plyList)
     
     
+    
+    #find max posible points of supplied lists for each gameday
+    for gameDay in range(1,35):
+        for tactic in tactics:
+            
+    
+    
+    return [goalPlist, defPlist, midPlist, scoPlist]
+
+
+#goaList=[43627, 51437, 46371]
+#defList=[77168, 66525, 54252, 48721, 48335, 30898]
+#midList=[81437,39228, 79036,57894,51516,48905,42063,31656]
+#scoList= [79543, 65936, 63878,40133,33715]
+
+
+
+
+
+
