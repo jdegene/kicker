@@ -431,12 +431,14 @@ def posTable(position, league, capacity, maxItems):
 
 ##########################################################################################
 # examines the best possible combination from the 4 tables from posTable() and returns it
+# This works for exactly 11 players and regards all tactical combinations
 ##########################################################################################    
     
-def tracePos(torTable, abwTable, mitTable, stuTable):
+def tracePos11(torTable, abwTable, mitTable, stuTable):
     
     maxPoints = 0
     
+
     tactics = [(3,4,3), (3,5,2), (4,5,1), (4,4,2), (4,3,3)]
     
     # determine minimum and maximum goalie cost, so not the full budget span is iterated over
@@ -481,13 +483,49 @@ def tracePos(torTable, abwTable, mitTable, stuTable):
     return [maxPoints, maxList, theTactic]
         
     
+##########################################################################################
+# examines the best possible combination from the 4 tables from posTable() and returns it
+# This works for exactly 22 players, this doesn't account for any tactical lineup
+##########################################################################################   
+def tracePos22(torTable, abwTable, mitTable, stuTable):   
     
+    maxPoints = 0
     
+    # determine minimum and maximum goalie cost, so not the full budget span is iterated over
+    for torLen in range(len(torTable)-1,-1,-1):
+        if torTable[torLen][len(torTable[1])-1][3] != torTable[torLen-1][len(torTable[1])-1][3]:
+            torMax = torLen
+            break
+    for torLen in range(len(torTable)-1):
+        if torTable[torLen][len(torTable[1])-1][3] != 0:
+            torMin = torLen
+            break
     
-    
-    
-    
-    
+
+    # iterate over all budget levels possible for goalie
+    for wg in range(torMin,torMax+1):
+        torPoints = torTable[wg][len(torTable[1])-1][3]
+        
+        # iterate over the remaining budget for the defenders
+        for wd in range(len(torTable)-wg):
+            defPoints = abwTable[wd][len(abwTable[1])-1][6]
+            
+            # iterate over the remaining budget for the midfielders
+            for wm in range(len(torTable)-wd-wg):
+                midPoints = mitTable[wm][len(mitTable[1])-1][8]
+                    
+                # don't iterate through all possible, only the one remaining is enough
+                restBudget = len(torTable)-wm-wd-wg
+                scoPoints = stuTable[restBudget-1][len(stuTable[1])-1][5]
+                
+                sumPoints = torPoints + defPoints  + midPoints + scoPoints 
+                    
+                if sumPoints > maxPoints:
+                    maxPoints = sumPoints
+                    maxList = tuple([wg,wd,wm,restBudget-1])
+                    theTactic = (3,6,8,5)
+                    
+    return [maxPoints, maxList, theTactic]        
     
     
     
