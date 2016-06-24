@@ -534,9 +534,7 @@ def tracePos22(torTable, abwTable, mitTable, stuTable):
 #  input lists should contain player ID's as integer [2546871,2158484,124478...]
 ########################################################################################## 
 def optimal22(goaList, defList, midList, scoList):
-    
-    tactics = [(3,4,3), (3,5,2), (4,5,1), (4,4,2), (4,3,3)]
-    
+        
     # Function will return the position of the largest value in a list
     def index_max(values):
         return max(range(len(values)),key=values.__getitem__)
@@ -552,7 +550,116 @@ def optimal22(goaList, defList, midList, scoList):
             else:
                 teamList.append(dfPlayer["Team"][dfPlayer["Player_ID"] == ID].item())
         return 1
+    
+    # takes the list of 11 player ID's, finds those that are part of a group with more than
+    # 3 players of one team, determines the worst of these players and returns their ID's
+    # i.e. it ignores the 3 best players from this team
+    def checkMax3Player(IDlist, pointsList):
+        badList = []
+        teamList = []
+        for ID in IDlist:            
+            curTeam = dfPlayer["Team"][dfPlayer["Player_ID"] == ID].item()
+            teamList.append(curTeam)
+        teamSet = set(teamList)
         
+        for uqTeam in teamSet:
+            chooseList = []
+            for player in range(11):
+                if teamList[player] == uqTeam:
+                    chooseList.append( [pointsList[player], IDlist[player]])
+            
+            while len(chooseList) > 3:
+                badList.append(min(chooseList)[1])
+                chooseList.remove(min(chooseList))
+        return(badList)
+
+    
+    # calculates the best 
+    def bestCombo(gameDay, playerIDlist, playerPointslist):
+              
+        tactics = [(3,4,3), (3,5,2), (4,5,1), (4,4,2), (4,3,3)]
+        
+        goaList, defList, midList, scoList = [x for x in playerIDlist]
+        goaPlist, defPlist, midPlist, scoPlist = [x for x in playerPointslist]
+                            
+        # list will be returned, contains a list of gamedays with each conataining 
+        #  maximum points, tactical lineup, points per player and player ID's
+        returnList = []       
+        dayPlayerList = []  # stores best player ID's per gameDay
+        dayPointsList = []  # stores the best points per player for each DG
+        dayPoints = 0       # stores max possible points per gameDay
+        
+        for tactic in tactics:
+            dayTacList = [] # fill list for each tactic and only use best tactic
+            dayTacPointList = []
+            
+            # position of best point value of this gd for goalies
+            goaMaxPos = index_max([x[gameDay-1] for x in goaPlist])
+            dayTacPointList.append(goaPlist[goaMaxPos][gameDay-1])
+            dayTacList.append(goaList[goaMaxPos])
+            
+            # for defenders, create a list of all values and subtract each best after iteration
+            defDayList = [x[gameDay-1] for x in defPlist]
+            curdefIDlist = [x for x in defList]
+            for i in range(tactic[0]):
+                defMaxPos = index_max(defDayList)
+                dayTacPointList.append(defDayList[defMaxPos])
+                dayTacList.append(curdefIDlist[defMaxPos])
+                defDayList.remove(defDayList[defMaxPos])
+                curdefIDlist.remove(curdefIDlist[defMaxPos])
+                            
+            # for midfielders, create a list of all values and subtract each best after iteration
+            midDayList = [x[gameDay-1] for x in midPlist] 
+            curmidIDlist = [x for x in midList]
+            for i in range(tactic[1]):
+                midMaxPos = index_max(midDayList)
+                dayTacPointList.append(midDayList[midMaxPos])
+                dayTacList.append(curmidIDlist[midMaxPos])
+                midDayList.remove(midDayList[midMaxPos])
+                curmidIDlist.remove(curmidIDlist[midMaxPos])
+            
+            # for scorers, create a list of all values and subtract each best after iteration
+            scoDayList = [x[gameDay-1] for x in scoPlist]  
+            curscoIDlist = [x for x in scoList]
+            for i in range(tactic[2]):
+                scoMaxPos = index_max(scoDayList)
+                dayTacPointList.append(scoDayList[scoMaxPos])
+                dayTacList.append(curscoIDlist[scoMaxPos])
+                scoDayList.remove(scoDayList[scoMaxPos])
+                curscoIDlist.remove(curscoIDlist[scoMaxPos])
+            
+            
+            #check that no more than 3 players of one team are in the list, else skip
+            if checkMax3(dayTacList) == 0:
+                                
+                badList = checkMax3Player(dayTacList, dayTacPointList)
+                
+                newPlayerIDlist = [x for x in playerIDlist]  
+                newPlayerPointslist = [x for x in playerPointslist]
+                 
+                for badValue in badList:
+                    for listIndex in range(len(newPlayerIDlist)):
+                        if badValue in newPlayerIDlist[listIndex]:
+                            badIndex = newPlayerIDlist[listIndex].index(badValue)
+                            del newPlayerIDlist[listIndex][badIndex]
+                            del newPlayerPointslist[listIndex][badIndex]
+                             
+                 
+                returnList = bestCombo(gameDay, newPlayerIDlist, newPlayerPointslist)
+                dayPoints, returnTactic, dayPointsList, dayPlayerList = [x for x in returnList]
+                 
+            else:            
+                if sum(dayTacPointList) > dayPoints:
+                    dayPlayerList = [x for x in dayTacList]
+                    dayPointsList = [x for x in dayTacPointList]
+                    dayPoints = sum(dayTacPointList)
+                    returnTactic = tactic
+    
+                    returnList = [dayPoints, returnTactic, dayPointsList, dayPlayerList] 
+        
+        return(returnList)
+    
+ 
     
     # These lists will store a list per ID with points per GD
     goaPlist, defPlist, midPlist, scoPlist = ([] for i in range(4))
@@ -585,62 +692,13 @@ def optimal22(goaList, defList, midList, scoList):
                 
             writeList.append(plyList)
             
-    # list will be returned, contains a list of gamedays with each conataining 
-    #  maximum points, tactical lineup, points per player and player ID's
-    returnList = []
     
+    finalList = []
     #find max posible points of supplied lists for each gameday
-    for gameDay in range(1,35):
-        dayPlayerList = []  # stores best player ID's per gameDay
-        dayPointsList = []  # stores the best points per player for each DG
-        dayPoints = 0       # stores max possible points per gameDay
-        
-        for tactic in tactics:
-            dayTacList = [] # fill list for each tactic and only use best tactic
-            dayTacPointList = []
-            
-            # position of best point value of this gd for goalies
-            goaMaxPos = index_max([x[gameDay-1] for x in goaPlist])
-            dayTacPointList.append(goaPlist[goaMaxPos][gameDay-1])
-            dayTacList.append(goaList[goaMaxPos])
-            
-            # for defenders, create a list of all values and subtract each best after iteration
-            defDayList = [x[gameDay-1] for x in defPlist]
-            for i in range(tactic[0]):
-                defMaxPos = index_max(defDayList)
-                dayTacPointList.append(defDayList[defMaxPos])
-                dayTacList.append(defList[defMaxPos])
-                defDayList.remove(defDayList[defMaxPos])
-            
-            # for midfielders, create a list of all values and subtract each best after iteration
-            midDayList = [x[gameDay-1] for x in midPlist]    
-            for i in range(tactic[1]):
-                midMaxPos = index_max(midDayList)
-                dayTacPointList.append(midDayList[midMaxPos])
-                dayTacList.append(midList[midMaxPos])
-                midDayList.remove(midDayList[midMaxPos])
-            
-            # for scorers, create a list of all values and subtract each best after iteration
-            scoDayList = [x[gameDay-1] for x in scoPlist]  
-            for i in range(tactic[2]):
-                scoMaxPos = index_max(scoDayList)
-                dayTacPointList.append(scoDayList[scoMaxPos])
-                dayTacList.append(scoList[scoMaxPos])
-                scoDayList.remove(scoDayList[scoMaxPos])
-            
-            # check that no more than 3 players of one team are in the list, else skip
-            if checkMax3(dayTacList) == 0:
-                continue
-            
-            if sum(dayTacPointList) > dayPoints:
-                dayPlayerList = [x for x in dayTacList]
-                dayPointsList = [x for x in dayTacPointList]
-                dayPoints = sum(dayTacPointList)
-                returnTactic = tactic
-    
-        returnList.append([dayPoints, returnTactic, dayPointsList, dayPlayerList])
+    for gD in range(1,35):        
+        finalList.append(bestCombo(gD, [goaList, defList, midList, scoList], [goaPlist, defPlist, midPlist, scoPlist]))
 
-    return returnList
+    return finalList 
 
 
 #goaList=[43627, 51437, 46371]
