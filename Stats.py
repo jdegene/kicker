@@ -119,10 +119,10 @@ class Stats:
         
         return returnList 
     
-    # returns the average points for each tactical lineup
+    # returns the average points for each tactical lineup SLOW
     def pointsPerTactic():
+        returnList = []
         for x in range(5):
-            returnList = []
             DBOutput = c.execute('SELECT Manager_ID, GameDay FROM Tactics1_15 WHERE TacID={}'.format(x)).fetchall()
             pointsList = []
             for y in DBOutput:
