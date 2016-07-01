@@ -47,7 +47,7 @@ dfPlyStats = pd.read_sql_query("SELECT * from PlayerStats", conDB)
 #dfBLsorted = dfBL.sort_values("Sums", ascending=False)
 
 # Load Tactics into dataframe THIS TAKES TOO LONG, DATAFRAME WILL BE HUGE, RATHER USE SQLITE FOR THIS
-#dfTactics = pd.read_sql_query("SELECT * from Tactics1_15", conDB)
+dfTactics = pd.read_sql_query("SELECT * from Tactics1_15", conDB)
 
 
 
@@ -69,14 +69,14 @@ dfPoints['Total'] = dfPoints[col_list].sum(axis=1)
 
 # add a column to dfBL with a collections.Counter of tactical lineup, and a column with the number of different lineups
 # WAY TOO SLOW, ONLY RUN WHEN REALLY NEEDED. THE VERSION WITHOUT SQLite needs the dfTactics dataframe
-#for x in dfPoints["Manager_ID"]:
-#    #DBoutput = c.execute('SELECT TacID FROM Tactics1_15 WHERE Manager_ID={}'.format(x)).fetchall()
-#    DFoutput = dfTactics[dfTactics["Manager_ID"]==4540209]["TacID"]
-#    #flatOutput = flatten(DBoutput)
-#    dfPoints["Counter"] = 0
-#    dfPoints["TacNum"] = 0
-#    dfPoints["Counter"].loc[dfPoints["Manager_ID"] == x] = dict(collections.Counter(DFoutput))
-#    dfPoints["TacNum"].loc[dfPoints["Manager_ID"] == x] = len(collections.Counter(DFoutput))
+dfPoints["Counter"] = 0
+dfPoints["TacNum"] = 0
+for x in dfPoints["Manager_ID"]:
+    #DBoutput = c.execute('SELECT TacID FROM Tactics1_15 WHERE Manager_ID={}'.format(x)).fetchall()
+    DFoutput = dfTactics[dfTactics["Manager_ID"]==x]["TacID"]
+    #flatOutput = flatten(DBoutput)
+    dfPoints["Counter"].loc[dfPoints["Manager_ID"] == x] = dict(collections.Counter(DFoutput))
+    dfPoints["TacNum"].loc[dfPoints["Manager_ID"] == x] = len(collections.Counter(DFoutput))
 
 
 
