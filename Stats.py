@@ -14,6 +14,11 @@ league1Teams = ['FC Augsburg', 'Hamburger SV', 'Bor. Mönchengladbach', 'Borussi
        'TSG Hoffenheim', 'Bayern München', '1. FC Köln', 'Hannover 96', 'Eintracht Frankfurt', 'SV Darmstadt 98',
        'VfL Wolfsburg', 'FC Schalke 04',  'Bayer 04 Leverkusen', 'VfB Stuttgart', 'Hertha BSC',
        'FC Ingolstadt 04',  '1. FSV Mainz 05']
+       
+league1URLs= ['fc-Augsburg','hamburger-sv', 'borussia-mgladbach', 'borussia-dortmund', 'werder-bremen',
+                '1899-hoffenheim', 'bayern-muenchen', 'fc-koeln', 'hannover-96', 'eintracht-frankfurt', 'sv-darmstadt',
+                'vfl-wolfsburg', 'fc-schalke', 'leverkusen', 'vfb-stuttgart', 'hertha-bsc', 
+                'fc-ingolstadt', 'fsv-mainz']
 
 league2Teams = [ '1. FC Nürnberg', 'Fortuna Düsseldorf', 'Arminia Bielefeld', '1. FC Union Berlin',
  'SV Sandhausen', 'MSV Duisburg', 'SC Paderborn 07', '1860 München', 'SC Freiburg',
@@ -47,7 +52,7 @@ dfPlyStats = pd.read_sql_query("SELECT * from PlayerStats", conDB)
 #dfBLsorted = dfBL.sort_values("Sums", ascending=False)
 
 # Load Tactics into dataframe THIS TAKES TOO LONG, DATAFRAME WILL BE HUGE, RATHER USE SQLITE FOR THIS
-dfTactics = pd.read_sql_query("SELECT * from Tactics1_15", conDB)
+#dfTactics = pd.read_sql_query("SELECT * from Tactics1_15", conDB)
 
 
 
@@ -69,14 +74,14 @@ dfPoints['Total'] = dfPoints[col_list].sum(axis=1)
 
 # add a column to dfBL with a collections.Counter of tactical lineup, and a column with the number of different lineups
 # WAY TOO SLOW, ONLY RUN WHEN REALLY NEEDED. THE VERSION WITHOUT SQLite needs the dfTactics dataframe
-dfPoints["Counter"] = 0
-dfPoints["TacNum"] = 0
-for x in dfPoints["Manager_ID"]:
-    #DBoutput = c.execute('SELECT TacID FROM Tactics1_15 WHERE Manager_ID={}'.format(x)).fetchall()
-    DFoutput = dfTactics[dfTactics["Manager_ID"]==x]["TacID"]
-    #flatOutput = flatten(DBoutput)
-    dfPoints["Counter"].loc[dfPoints["Manager_ID"] == x] = dict(collections.Counter(DFoutput))
-    dfPoints["TacNum"].loc[dfPoints["Manager_ID"] == x] = len(collections.Counter(DFoutput))
+#dfPoints["Counter"] = 0
+#dfPoints["TacNum"] = 0
+#for x in dfPoints["Manager_ID"]:
+#    #DBoutput = c.execute('SELECT TacID FROM Tactics1_15 WHERE Manager_ID={}'.format(x)).fetchall()
+#    DFoutput = dfTactics[dfTactics["Manager_ID"]==x]["TacID"]
+#    #flatOutput = flatten(DBoutput)
+#    dfPoints["Counter"].loc[dfPoints["Manager_ID"] == x] = dict(collections.Counter(DFoutput))
+#    dfPoints["TacNum"].loc[dfPoints["Manager_ID"] == x] = len(collections.Counter(DFoutput))
 
 
 
@@ -113,6 +118,77 @@ def managerSlice(upperBound, lowerBound):
     return returndf
 
 class Stats:
+    
+    # returns average points of the teams playing against this one team
+    # team must be in league1Teams
+    def againstTeam(team):
+        goaList, defList, midList, scoList = [[] for x in range(4)]
+        
+        # return team name as written in URL
+        teamURLname = league1URLs[league1Teams.index(team)]
+        
+        for x in pL1["Player_ID"]:
+            ownTeam = pL1["Team"][pL1["Player_ID"]==x].values[0]
+            
+            if ownTeam == team:
+                continue
+            
+            position = pL1["POS"][pL1["Player_ID"]==x].values[0]
+            playerpL1 = dfPlyStats[(dfPlyStats["Player_ID"]==x)]
+            #gameIDlist = dfPlyStats[(dfPlyStats["Player_ID"]==x)]["GameID"].values.tolist()
+            
+            # iterate over each row
+            for index, row in playerpL1.iterrows():
+                gameURL = row["GameURL"]
+                if teamURLname in gameURL:
+                    
+                    if position == "Torwart":
+                        goaList.append(row["Points"])
+                    elif position == "Abwehr":
+                        defList.append(row["Points"])
+                    elif position == "Mittelfeld":
+                        midList.append(row["Points"])
+                    elif position == "Sturm":
+                        scoList.append(row["Points"])                    
+                
+                
+        goaAvg = sum(goaList)/len(goaList)
+        defAvg = sum(defList)/len(defList)
+        midAvg = sum(midList)/len(midList)
+        scoAvg = sum(scoList)/len(scoList)
+            
+        return [[goaAvg, defAvg, midAvg,scoAvg],[goaList,defList, midList, scoList]]
+        
+        
+        
+    
+    # HoA can be "H" or "A" for Home or Away
+    def homeaway(HoA):
+        goaList, defList, midList, scoList = [[] for x in range(4)]
+        for x in pL1["Player_ID"]:
+            position = pL1["POS"][pL1["Player_ID"]==x].values[0] # get player position
+            
+            # get dataframe for player and home or away only
+            newDF = dfPlyStats[(dfPlyStats["Player_ID"]==x) & (dfPlyStats["HA"]==HoA)]
+            addList = newDF.Points.values.tolist() 
+            
+            if position == "Torwart":
+                goaList.append(addList)
+            elif position == "Abwehr":
+                defList.append(addList)
+            elif position == "Mittelfeld":
+                midList.append(addList)
+            elif position == "Sturm":
+                scoList.append(addList)
+        
+        goaAvg = sum(flatten(goaList))/len(flatten(goaList))
+        defAvg = sum(flatten(defList))/len(flatten(defList))
+        midAvg = sum(flatten(midList))/len(flatten(midList))
+        scoAvg = sum(flatten(scoList))/len(flatten(scoList))
+            
+        return [[goaAvg, defAvg, midAvg,scoAvg],[flatten(goaList),flatten(defList), flatten(midList), flatten(scoList)]]
+                
+            
     
     # returns a list of points for 1% slices of Managers
     def slicePoints():
@@ -152,7 +228,9 @@ class Stats:
             avgPoints = sum(pointsList)/len(pointsList)
             returnList.append(avgPoints)
             
-        return returnList
+
+    
+    
     
         
 
