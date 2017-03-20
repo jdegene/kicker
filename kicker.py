@@ -12,14 +12,14 @@ import concurrent.futures as cf
 
 
 # define used season (starting year), used for naming within database (no past season support)
-season = '2015'
+season = '2016'
 league = '1'
 
 # Last played GameDay
-maxGD = 33
+maxGD = 1
 
 # Database filepath
-dbName = 'D:/Test/kicker_x_db/kicker_main_2.sqlite'
+dbName = 'D:/Test/kicker16/kicker_main_2.sqlite'
 
 
 #############################
@@ -107,7 +107,8 @@ conDB.close()
 ############################# 
 
 
-loginURL = "http://www.kicker.de/games/interactive/startseite/gamesstartseite.html"
+#loginURL = "http://www.kicker.de/games/interactive/startseite/gamesstartseite.html" # OLD
+loginURL = "https://secure.kicker.de/community/login"
 
 # Username and PW read from separate file (first and second line)
 uName = open('D:\Python\Info.txt', "r").readlines()[0].rstrip('\n')
@@ -120,10 +121,19 @@ driver = webdriver.PhantomJS()
 driver.get(loginURL)
 
 # Get the Username and Password fields by their ID
-login_name_form = driver.find_element_by_id('nicknameLoginBox')
-login_pw_form = driver.find_element_by_id('passwordLoginBox')
+
+login_name_form = driver.find_element_by_id('userTextBox')
+login_pw_form = driver.find_element_by_id('passwortTextBox')
+#login_name_form = driver.find_element_by_id('nicknameLoginBox') # OLD
+#login_pw_form = driver.find_element_by_id('passwordLoginBox') # OLD
+
+
 # Get the LOS Button by its name
-LOS_Button = driver.find_element_by_name('Submit')
+LOS_Button = driver.find_element_by_name('loginButton')
+#LOS_Button = driver.find_element_by_name('Submit') # OLD
+
+# Check "Stay Logged in" Button
+driver.find_element_by_name('loginPersistant').click()
 
 # Fill in Username and Password and confirm with Enter
 login_name_form.send_keys(uName)
@@ -140,7 +150,7 @@ LOS_Button.send_keys(Keys.ENTER)
 ################### Manager Points Scraping  ############################################
 #########################################################################################
 
-def scrapePoints(dbName,league,maxGD):
+def scrapePoints(dbName,league,maxGD, minGD=1):
     """
     function that scrapes the points of every single gameday for each manager and stores them
     in the database
@@ -152,16 +162,22 @@ def scrapePoints(dbName,league,maxGD):
         :league:    takes 1 or 2, for Bundesliga 1 or 2
         :maxGD:     last played/available Gameday. Kicker would treat all non-played days
                     as the last played -> would not stop scraping + wrong values
+        :minGD:     starting GameDay, default is 1. Useful when running mutliple clients for different
+                    GameDays
         
     """
     # connect to SQLite3 DB
     conDB = sqlite3.connect(dbName)
     c = conDB.cursor()
     
-    for Spieltag in range(1,maxGD+1):
+    for Spieltag in range(minGD, maxGD+1):
         
         # check if gameday is already in DB by checking KeepTrack table, skip if existing
         x = c.execute('SELECT BL{}_{} FROM KeepTrack WHERE GameDay = "GD{}"'.format(league,season[2:],Spieltag)).fetchone()
+        
+        if not x:       #check if x exists at all (eg after fresh DB install)
+            x = [0]
+        
         if x[0] == 1:
             print("Skipping GameDay {}: already existing".format(Spieltag))
             continue        
@@ -340,7 +356,6 @@ def scrapePlayers(dbName, season, league, update=1):
     
     # Acces each players stats site
     for ID in kickerIDlist:
-        ID = 64040
         if league == '1':
             PlayerURL = 'http://manager.kicker.de/interactive/bundesliga/spieleranalyse/spielerid/{}'.format(ID)  
         elif league == '2':
@@ -924,30 +939,29 @@ def calcPoints(UQID, league, season):
     
     
     # Dictionary with Grades and related Points, grades are keys
-    gradeDict = {1.0:10, 1.5:8, 2.0:6, 2.5:4, 3.0:2, 3.5:0, 4.0:-2, 4.5:-4, 5.0:-6, 5.5:-8, 6.0:-10}
-    
+    gradeDict = {1.0:10, 1.5:8, 2.0:6, 2.5:4, 3.0:2, 3.5:0, 4.0:-2, 4.5:-4, 5.0:-6, 5.5:-8, 6.0:-10}    
     # Dictionary Points for Goals related to poisiion, positions are keys
     goalDict = {'Torwart':6, 'Abwehr':5,'Mittelfeld':4,'Sturm':3}
        
     # PlayerStats query (related to gameday)
-    Uq = c.execute("SELECT * FROM PlayerStats{}_{} WHERE UQID={}".format(league, season[2:], UQID)).fetchone()
-    
+    Uq = c.execute("SELECT * FROM PlayerStats{}_{} WHERE UQID={}".format(league, season[2:], UQID)).fetchone()    
     # Player query (related to general info), get PlayerID from Uq
-    Pq =  c.execute("SELECT * FROM Player WHERE Player_ID={}".format(Uq[1])).fetchone()
-    
+    Pq =  c.execute("SELECT * FROM Player WHERE Player_ID={}".format(Uq[1])).fetchone()    
     # Game query (related to game info), get GameID from Uq
     Gq =  c.execute("SELECT * FROM Games WHERE GameID={}".format(Uq[14])).fetchone()
-    
-    
+     
     
     totP = 0 # Var to store all points
     
     # Played from beginning and got a grade?
-    if Uq[12] > 0:                          
-        totP = totP + 2                     # played from start
-        totP = totP + gradeDict[Uq[12]]     # points for grade
-    else:
-        totP = totP + 1                     # got changed in
+    if Uq[12] > 0 and Uq[10] == 0:           # played from start               
+        totP = totP + 2                     
+        totP = totP + gradeDict[Uq[12]]     
+    elif Uq[12] > 0 and Uq[10] != 0:        # played NOT from start, but got grade
+        totP = totP + 1
+        totP = totP + gradeDict[Uq[12]]
+    else:                                   #  played NOT from start, got NO grade
+        totP = totP + 1                     
     
     # Scored Goals?
     if Uq[3] > 0:
@@ -1020,11 +1034,11 @@ def calcPoints(UQID, league, season):
 
 
   
-#scrapePoints(dbName,league,maxGD)
+scrapePoints(dbName,league,25,minGD=14)
 
 #scrapeTactics(dbName, season, league, 1)
  
-scrapePlayers(dbName, season, league, update=0)
+#scrapePlayers(dbName, season, league, update=0)
    
    
 #scrapeGames(season, league)   
