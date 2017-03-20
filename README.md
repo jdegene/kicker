@@ -49,6 +49,11 @@ Run scrapePoints() first, as scrapeTactic() will access the results to determine
 	The result are two or more DBs that need to merged into one again, achieved using this function
 
 
+### knapsack.py 
+
+	Implementation of a solution to the knapsack problem, used to solve the question which is the best posstible team of last season
+	The initial algorithm is from this post http://codereview.stackexchange.com/questions/20569/dynamic-programming-solution-to-knapsack-problem
+
 ### deprecated files
 
 *Selenium_Webscaper.py* and *html_miner_BS.py*  were devloped seperately. The first does the actual 
