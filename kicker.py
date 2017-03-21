@@ -19,7 +19,7 @@ league = '1'
 maxGD = 1
 
 # Database filepath
-dbName = 'D:/Test/kicker16/kicker_main_2.sqlite'
+dbName = 'D:/Test/kicker16/kicker_main.sqlite'
 
 
 
@@ -1016,7 +1016,8 @@ def dlPic(league, season):
    
 def mergeDBs(mainDB, secDB, tblName):
     """
-    merges a table from a second DB into a main DB
+    merges a table from a second DB into a main DB by appending data from one to the other
+    Does NOT work if rows already exist, to upate existing rows use fillDB()
     
         :mainDB:  str path to the main DB, this is the DB that will be kept
         :secDB:   str path to the secondary DB, this could be deleted afterwards
@@ -1043,6 +1044,66 @@ def mergeDBs(mainDB, secDB, tblName):
 
 
 
+def fillDBs(mainDB, secDB, tblName, idField):
+    """
+    merges a table from a second DB into a main DB by filling all NoData values in mainDB
+    with exisiting values from secDB
+    
+        :mainDB:  str path to the main DB, this is the DB that will be kept
+        :secDB:   str path to the secondary DB, this could be deleted afterwards
+        :tblName: str table name in both DBs, must be identical
+        :idField: str name of the key that is identical in both tables
+    """
+    
+    conDB = sqlite3.connect(mainDB)
+    c = conDB.cursor()
+    
+    c.execute("ATTACH DATABASE ? AS secondDB", (secDB,) )
+    
+    # Get a list of all column names (except idField)
+    colNamesQuery = c.execute("PRAGMA table_info('{}')".format(tblName)).fetchall()
+    colNamesList = []
+    
+    for entry in colNamesQuery:
+        if entry[1] == idField:
+            continue
+        else:
+            colNamesList.append(entry[1])
+    
+    
+    # Load the entire table from DB1
+    myQuery = c.execute("SELECT * FROM {}".format(tblName)).fetchall()
+    
+    # Iterate over each row in DB1 table
+    for x in myQuery:
+        manID = x[0]
+        
+        # Get the correposing row from DB2
+        secQuery = c.execute("SELECT * FROM secondDB.{} WHERE {} = {}".format(tblName, idField, manID)).fetchone()
+        
+        # update first list if NoData, with values from second list
+        xList = list(x)
+        for idx,val in enumerate(xList):
+            if xList[idx] == None:
+                xList[idx] = secQuery[idx]
+
+        # replace None value with NULL for SQLite, remove first column with Key
+        listNULL = ['NULL' if x == None else x for x in xList][1:]
+        #singleString = ','.join(map(str, ['NULL' if x == None else x for x in xList]))
+        
+        # create a single update string for SQLite
+        singleString = ''
+        for idx,val in enumerate(colNamesList):
+            singleString = singleString + " " + val + "=" + str(listNULL[idx]) + ","
+        singleString = singleString[:-1] #remove last comma
+            
+        
+        # update table in first DB with new        
+        c.execute('UPDATE {} SET {} WHERE {} = {}'.format(tblName, singleString, idField, manID))
+        
+    conDB.commit()
+    c.execute( "DETACH DATABASE secondDB" )    
+    conDB.close()
 
 #########################################################################################
 ############################### Others  #################################################
@@ -1151,8 +1212,9 @@ def calcPoints(UQID):
 ######################################################################################### 
 
   
-#mergeDBs('D:/Test/kicker_x_db/kicker_main.sqlite', 'D:/Test/kicker_db/kicker_sub5.sqlite', 'Tactics1_15')
- 
+#mergeDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_main_2.sqlite', 'BL1_16')
+
+fillDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_main_2.sqlite', 'BL1_16', 'Manager_ID') 
  
  
 
@@ -1163,7 +1225,7 @@ def calcPoints(UQID):
 
 
   
-scrapePoints(dbName,league,25,minGD=14)
+#scrapePoints(dbName,league,13,minGD=2)
 
 
 
