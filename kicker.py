@@ -16,7 +16,7 @@ season = '2016'
 league = '1'
 
 # Last played GameDay
-maxGD = 1
+maxGD = 25
 
 # Database filepath
 dbName = 'D:/Test/kicker16/kicker_main.sqlite'
@@ -763,100 +763,112 @@ def scrapePlayers2(dbName):
 
 
 # single execution
-def scrapeTactics(dbName, season, league, Spieltag):
+def scrapeTactics(dbName, season, league, SpieltagList):
     """
     Uses Mananger IDs from Manager table in DB to extract teams by 
     scrapePoints() must be run before for each GD
     
+    :SpieltagList: can be a single integer or a list of integers
+    
     If gameday was not finished: will pick up unfinished Managers during gameday
     """
     
-    print(Spieltag, " started")
-    
-    # Overwrite dbname, should be off by default
-    #dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
-    
-    conDB = sqlite3.connect(dbName)
-    c = conDB.cursor()
-    
-    # create a list of rowids (=identical to gameday) where flag for manager teams = 0
-    #zeroList = [x[0] for x in c.execute('SELECT rowid FROM KeepTrack WHERE Man{}_{}=0'.format(league,season[2:])).fetchall()]
-    # new list of zeroList reduced by all numbers > maxGD, results in all valid undone gameDays
-    #iterList = [x for x in zeroList if int(x)<=maxGD]
-
-
+    if type(SpieltagList) == int:
+        spList = []
+        spList.append(SpieltagList)
+    elif type(SpieltagList) == list:
+        spList = SpieltagList
+    else:
+        print("Spieltag must be integer or list of integers")
         
-    # get List of all Managers if points have been scraped this season
-    manIDList = [x[0] for x in c.execute('SELECT Manager_ID FROM BL{}_{}'.format(league,season[2:])).fetchall()]
-    # reduce list by already exisiting entries -> no double scraping
-    manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
-    iterManListLong = [x for x in manIDList if x not in manReduceList] 
-    
-    # split list into 5 equal sized parts, last parts length may be shorter (test case)
-    #n = int(len(iterManList)/5)
-    #iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
-    
-    for x in range(0,len(iterManListLong)+1, 1000):
-        iterManList = iterManListLong[x:x+1000]
+    for Spieltag in spList:
         
-        # list that will store each line and is returned
-        resList = []
+        print(Spieltag, " started")
+        
+        # Overwrite dbname, should be off by default
+        #dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
+        
+        conDB = sqlite3.connect(dbName)
+        c = conDB.cursor()
+        
+        # create a list of rowids (=identical to gameday) where flag for manager teams = 0
+        #zeroList = [x[0] for x in c.execute('SELECT rowid FROM KeepTrack WHERE Man{}_{}=0'.format(league,season[2:])).fetchall()]
+        # new list of zeroList reduced by all numbers > maxGD, results in all valid undone gameDays
+        #iterList = [x for x in zeroList if int(x)<=maxGD]
     
-        for manID in iterManList:
+    
             
-            # check if Manager has points on respective gameday, if not continue with next manID
-            if c.execute('SELECT GD{} FROM BL{}_{} WHERE Manager_ID={}'.format(Spieltag,league,season[2:],manID)).fetchone()[0] == None:
-                continue
-           
-            # Define URL for each Manager/league/Day combination
-            if league == '1':
-                manURL = 'http://manager.kicker.de/interactive/bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
-            elif league == '2':
-                manURL = 'http://manager.kicker.de/interactive/2bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
-            else:
-                'Only League 1 or 2 supported'
+        # get List of all Managers if points have been scraped this season
+        manIDList = [x[0] for x in c.execute('SELECT Manager_ID FROM BL{}_{}'.format(league,season[2:])).fetchall()]
+        # reduce list by already exisiting entries -> no double scraping
+        manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
+        iterManListLong = [x for x in manIDList if x not in manReduceList] 
+        
+        # split list into 5 equal sized parts, last parts length may be shorter (test case)
+        #n = int(len(iterManList)/5)
+        #iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
+        
+        for x in range(0,len(iterManListLong)+1, 1000):
+            iterManList = iterManListLong[x:x+1000]
             
-            driver.get(manURL) 
-            BLrankHTLM = driver.page_source
-            soup = BeautifulSoup(BLrankHTLM, "lxml")
-            
-            # put in try/except, as sometime empty pages are scraped?! 
-            try:
-                # Find the tag containing the ID for chosen tactic (0-4 see above)
-                entry = soup.find('form', attrs={'name':"PlayerForm"})
-                tacTag = entry.find('input', attrs={'id':'inptactic'})
-                tacID = tacTag.get('value')
-            except:
-                print(manID, len(BLrankHTLM))
-                continue
-            
-            # Find the long string containing all Players in order
-            startStr = BLrankHTLM.find("""ovTeamPlayerElements = "{'players':""")
-            endStr = BLrankHTLM.find("\n", startStr)
-            longStr = BLrankHTLM[startStr:endStr]
-            
-            # search player ID, save to list, delete obolote first part of string, repeat
-            playerList = []
-            pos = 0
-            while pos != -1:
-                pos = longStr.find('splid')
-                first = pos + 8 # finds first digit of the ID
-                last = longStr.find("'", first) # look for next ' after pos
-                playerList.append(longStr[first:last])
-                longStr = longStr[last:]
-            
-            # remove empty entry from the back
-            addTuple = tuple([manID, Spieltag, tacID ] + [x for x in playerList if x != ''])
-            
-            resList.append(addTuple)
-            
-        for line in resList:
-            try:
-                c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(line) )
-            except:
-                pass
-            
-        conDB.commit()
+            # list that will store each line and is returned
+            resList = []
+        
+            for manID in iterManList:
+                
+                # check if Manager has points on respective gameday, if not continue with next manID
+                if c.execute('SELECT GD{} FROM BL{}_{} WHERE Manager_ID={}'.format(Spieltag,league,season[2:],manID)).fetchone()[0] == None:
+                    continue
+               
+                # Define URL for each Manager/league/Day combination
+                if league == '1':
+                    manURL = 'http://manager.kicker.de/interactive/bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
+                elif league == '2':
+                    manURL = 'http://manager.kicker.de/interactive/2bundesliga/meinteam/steckbrief/manid/{}/spieltag/{}'.format(manID,Spieltag)
+                else:
+                    'Only League 1 or 2 supported'
+                
+                driver.get(manURL) 
+                BLrankHTLM = driver.page_source
+                soup = BeautifulSoup(BLrankHTLM, "lxml")
+                
+                # put in try/except, as sometime empty pages are scraped?! 
+                try:
+                    # Find the tag containing the ID for chosen tactic (0-4 see above)
+                    entry = soup.find('form', attrs={'name':"PlayerForm"})
+                    tacTag = entry.find('input', attrs={'id':'inptactic'})
+                    tacID = tacTag.get('value')
+                except:
+                    print(manID, len(BLrankHTLM))
+                    continue
+                
+                # Find the long string containing all Players in order
+                startStr = BLrankHTLM.find("""ovTeamPlayerElements = "{'players':""")
+                endStr = BLrankHTLM.find("\n", startStr)
+                longStr = BLrankHTLM[startStr:endStr]
+                
+                # search player ID, save to list, delete obolote first part of string, repeat
+                playerList = []
+                pos = 0
+                while pos != -1:
+                    pos = longStr.find('splid')
+                    first = pos + 8 # finds first digit of the ID
+                    last = longStr.find("'", first) # look for next ' after pos
+                    playerList.append(longStr[first:last])
+                    longStr = longStr[last:]
+                
+                # remove empty entry from the back
+                addTuple = tuple([manID, Spieltag, tacID ] + [x for x in playerList if x != ''])
+                
+                resList.append(addTuple)
+                
+            for line in resList:
+                try:
+                    c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(line) )
+                except:
+                    pass
+                
+            conDB.commit()
             
         # write everything to the DB
         #c.execute( 'INSERT OR IGNORE INTO Tactics' + league + '_' + season[2:] + ' VALUES {}'.format(addTuple) )
@@ -1212,9 +1224,9 @@ def calcPoints(UQID):
 ######################################################################################### 
 
   
-#mergeDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_main_2.sqlite', 'BL1_16')
+#mergeDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_sub_1.sqlite', 'BL1_16')
 
-fillDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_main_2.sqlite', 'BL1_16', 'Manager_ID') 
+#fillDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_main_2.sqlite', 'BL1_16', 'Manager_ID') 
  
  
 
@@ -1229,7 +1241,7 @@ fillDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_main_2.s
 
 
 
-#scrapeTactics(dbName, season, league, 1)
+scrapeTactics('D:/Test/kicker16/kicker_sub_4_6.sqlite', season, league, [4,5,6])
  
 
 #scrapePlayers(dbName, season, league, update=0)
