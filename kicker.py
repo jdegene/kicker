@@ -119,7 +119,7 @@ uPass = open('D:\Python\Info.txt', "r").readlines()[1].rstrip('\n')
 
 #driver = webdriver.Firefox()
 #driver = webdriver.Chrome()
-driver = webdriver.PhantomJS()
+driver = webdriver.PhantomJS(service_log_path=os.path.devnull)
 
 driver.get(loginURL)
 
