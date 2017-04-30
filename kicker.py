@@ -800,8 +800,8 @@ def scrapeTactics(dbName, season, league, SpieltagList):
         manIDList = [x[0] for x in c.execute('SELECT Manager_ID FROM BL{}_{}'.format(league,season[2:])).fetchall()]
         # reduce list by already exisiting entries -> no double scraping
         manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
-        iterManListLong = [x for x in manIDList if x not in manReduceList] 
-        
+        iterManListLong = set(manIDList) - set(manReduceList)
+hans        
         print(Spieltag, " started with ", len(manIDList), "Managers, with ", len(manReduceList), "already processed (", len(iterManListLong), ") remaining")
         
         # split list into 5 equal sized parts, last parts length may be shorter (test case)
@@ -1226,12 +1226,12 @@ def calcPoints(UQID):
   
 #mergeDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_sub_4_6.sqlite', 'Tactics1_16')
 
-#fillDBs('D:/Test/kicker/kicker_main.sqlite', 'D:/Test/kicker/kicker_main_2.sqlite', 'Tactics1_16', 'Manager_ID') 
+fillDBs('D:/Test/kicker/kicker_main.sqlite', 'D:/Test/kicker/kicker_main_2.sqlite', 'BL1_16', 'Manager_ID') 
  
  
 
 
-scrapeTactics('D:/Test/kicker/kicker_main.sqlite', season, league, list(range(1,31))) 
+#scrapeTactics('D:/Test/kicker/kicker_main.sqlite', season, league, list(range(26,29))) 
 
 
   
