@@ -16,10 +16,10 @@ season = '2016'
 league = '1'
 
 # Last played GameDay
-maxGD = 25
+maxGD = 30
 
 # Database filepath
-dbName = 'D:/Test/kicker16/kicker_main.sqlite'
+dbName = 'D:/Test/kicker/kicker_main.sqlite'
 
 
 
@@ -781,9 +781,7 @@ def scrapeTactics(dbName, season, league, SpieltagList):
     else:
         print("Spieltag must be integer or list of integers")
         
-    for Spieltag in spList:
-        
-        print(Spieltag, " started")
+    for Spieltag in spList:    
         
         # Overwrite dbname, should be off by default
         #dbName = 'D:/Test/kicker_db/kicker_main_22.sqlite'
@@ -803,6 +801,8 @@ def scrapeTactics(dbName, season, league, SpieltagList):
         # reduce list by already exisiting entries -> no double scraping
         manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
         iterManListLong = [x for x in manIDList if x not in manReduceList] 
+        
+        print(Spieltag, " started with ", len(manIDList), "Managers, with ", len(manReduceList), "already processed (", len(iterManListLong), ") remaining")
         
         # split list into 5 equal sized parts, last parts length may be shorter (test case)
         #n = int(len(iterManList)/5)
@@ -1224,24 +1224,22 @@ def calcPoints(UQID):
 ######################################################################################### 
 
   
-#mergeDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_sub_1.sqlite', 'BL1_16')
+#mergeDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_sub_4_6.sqlite', 'Tactics1_16')
 
-#fillDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_main_2.sqlite', 'BL1_16', 'Manager_ID') 
+#fillDBs('D:/Test/kicker/kicker_main.sqlite', 'D:/Test/kicker/kicker_main_2.sqlite', 'Tactics1_16', 'Manager_ID') 
  
  
 
-#for x in range(1,32):
-#    scrapeTacticsMult(dbName, season, league,Spieltag=x)  
 
-#scrapeTactics(dbName, season, league, 34)
+scrapeTactics('D:/Test/kicker/kicker_main.sqlite', season, league, list(range(1,31))) 
 
 
   
-#scrapePoints(dbName,league,13,minGD=2)
+#scrapePoints(dbName,league,30,minGD=27)
 
 
 
-scrapeTactics('D:/Test/kicker16/kicker_sub_4_6.sqlite', season, league, [4,5,6])
+#scrapeTactics('D:/Test/kicker16/kicker_sub_25.sqlite', season, league, 25)
  
 
 #scrapePlayers(dbName, season, league, update=0)
