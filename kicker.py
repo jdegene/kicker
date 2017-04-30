@@ -869,7 +869,7 @@ def scrapeTactics(dbName, season, league, SpieltagList):
                 
                 # Print time (average seconds per 10 Managers) and Managers to keep track of process
                 if ctr%10 == 0:
-                    avgTime = round((datetime.datetime.now()-startTime).seconds / ctr, 2)
+                    avgTime = round((datetime.datetime.now()-startTime).seconds, 2)
                     startTime = datetime.datetime.now()
                     print("\r" + str(ctr) + "/" + str(iterManListLongLen) + " Managers of GameDay " + str(Spieltag) 
                     + " processed. Avg. time per 10 Managers: " + str(avgTime) + "sec", end="")
