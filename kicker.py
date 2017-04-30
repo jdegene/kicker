@@ -8,6 +8,8 @@ import sqlite3
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 
+import datetime
+
 import concurrent.futures as cf
 
 
@@ -789,18 +791,18 @@ def scrapeTactics(dbName, season, league, SpieltagList):
         conDB = sqlite3.connect(dbName)
         c = conDB.cursor()
         
-        # create a list of rowids (=identical to gameday) where flag for manager teams = 0
-        #zeroList = [x[0] for x in c.execute('SELECT rowid FROM KeepTrack WHERE Man{}_{}=0'.format(league,season[2:])).fetchall()]
-        # new list of zeroList reduced by all numbers > maxGD, results in all valid undone gameDays
-        #iterList = [x for x in zeroList if int(x)<=maxGD]
-    
-    
+        # counter to keep track of speed of processing
+        ctr = 0
+        startTime = datetime.datetime.now()
+        
             
         # get List of all Managers if points have been scraped this season
         manIDList = [x[0] for x in c.execute('SELECT Manager_ID FROM BL{}_{}'.format(league,season[2:])).fetchall()]
         # reduce list by already exisiting entries -> no double scraping
         manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
-        iterManListLong = set(manIDList) - set(manReduceList)
+        iterManSetLong = set(manIDList) - set(manReduceList)
+        iterManListLong = list(iterManSetLong)
+        iterManListLongLen = len(iterManListLong)
        
         print(Spieltag, " started with ", len(manIDList), "Managers, with ", len(manReduceList), "already processed (", len(iterManListLong), ") remaining")
         
@@ -808,13 +810,16 @@ def scrapeTactics(dbName, season, league, SpieltagList):
         #n = int(len(iterManList)/5)
         #iterManSubList = [iterManList[i:i+n] for i in range(0, len(iterManList), n)]
         
-        for x in range(0,len(iterManListLong)+1, 1000):
-            iterManList = iterManListLong[x:x+1000]
-            
+        for x in range(0,len(iterManListLong)+1, 100):
+            iterManList = iterManListLong[x:x+100]
+                        
             # list that will store each line and is returned
             resList = []
         
             for manID in iterManList:
+                
+                # increase counter for each Manager ID
+                ctr = ctr + 1
                 
                 # check if Manager has points on respective gameday, if not continue with next manID
                 if c.execute('SELECT GD{} FROM BL{}_{} WHERE Manager_ID={}'.format(Spieltag,league,season[2:],manID)).fetchone()[0] == None:
@@ -861,6 +866,13 @@ def scrapeTactics(dbName, season, league, SpieltagList):
                 addTuple = tuple([manID, Spieltag, tacID ] + [x for x in playerList if x != ''])
                 
                 resList.append(addTuple)
+                
+                # Print time (average seconds per 10 Managers) and Managers to keep track of process
+                if ctr%10 == 0:
+                    avgTime = round((datetime.datetime.now()-startTime).seconds / ctr, 2)
+                    startTime = datetime.datetime.now()
+                    print("\r" + str(ctr) + "/" + str(iterManListLongLen) + " Managers of GameDay " + str(Spieltag) 
+                    + " processed. Avg. time per 10 Managers: " + str(avgTime) + "sec", end="")
                 
             for line in resList:
                 try:
@@ -1226,12 +1238,12 @@ def calcPoints(UQID):
   
 #mergeDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_sub_4_6.sqlite', 'Tactics1_16')
 
-fillDBs('D:/Test/kicker/kicker_main.sqlite', 'D:/Test/kicker/kicker_main_2.sqlite', 'BL1_16', 'Manager_ID') 
+#fillDBs('D:/Test/kicker/kicker_main.sqlite', 'D:/Test/kicker/kicker_main_2.sqlite', 'BL1_16', 'Manager_ID') 
  
  
 
 
-#scrapeTactics('D:/Test/kicker/kicker_main.sqlite', season, league, list(range(26,29))) 
+scrapeTactics('D:/Test/kicker/kicker_main.sqlite', season, league, list(range(26,29))) 
 
 
   
