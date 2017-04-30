@@ -801,7 +801,7 @@ def scrapeTactics(dbName, season, league, SpieltagList):
         # reduce list by already exisiting entries -> no double scraping
         manReduceList = [x[0] for x in c.execute('SELECT Manager_ID FROM Tactics{}_{} WHERE GameDay={}'.format(league,season[2:],Spieltag)).fetchall()]
         iterManListLong = set(manIDList) - set(manReduceList)
-hans        
+       
         print(Spieltag, " started with ", len(manIDList), "Managers, with ", len(manReduceList), "already processed (", len(iterManListLong), ") remaining")
         
         # split list into 5 equal sized parts, last parts length may be shorter (test case)
