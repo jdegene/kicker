@@ -9,6 +9,8 @@ from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 
 import datetime
+import multiprocessing.pool
+import functools
 
 import concurrent.futures as cf
 
@@ -118,8 +120,8 @@ uName = open('D:\Python\Info.txt', "r").readlines()[0].rstrip('\n')
 uPass = open('D:\Python\Info.txt', "r").readlines()[1].rstrip('\n')
 
 #driver = webdriver.Firefox()
-#driver = webdriver.Chrome()
-driver = webdriver.PhantomJS(service_log_path=os.path.devnull)
+#driver = webdriver.Chrome(executable_path=r'C:\Program Files (x86)\Google\Chrome\Application\chrome.exe')
+driver = webdriver.PhantomJS(executable_path=r'C:\Program Files (x86)\phantomJS-1.9.8\phantomjs.exe')
 
 driver.get(loginURL)
 
@@ -148,6 +150,7 @@ LOS_Button.send_keys(Keys.ENTER)
 #############################
 #### ###  Functions  ## #####
 ############################# 
+
 
 #########################################################################################
 ################### Manager Points Scraping  ############################################
@@ -833,9 +836,15 @@ def scrapeTactics(dbName, season, league, SpieltagList):
                 else:
                     'Only League 1 or 2 supported'
                 
-                driver.get(manURL) 
+                
+                # Retrieving URL
+                def getManURL():
+                    driver.get(manURL) 
+                
+                getManURL()                
                 BLrankHTLM = driver.page_source
                 soup = BeautifulSoup(BLrankHTLM, "lxml")
+                
                 
                 # put in try/except, as sometime empty pages are scraped?! 
                 try:
