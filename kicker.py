@@ -20,7 +20,7 @@ season = '2016'
 league = '1'
 
 # Last played GameDay
-maxGD = 30
+maxGD = 33
 
 # Database filepath
 dbName = 'D:/Test/kicker/kicker_main.sqlite'
@@ -1245,18 +1245,18 @@ def calcPoints(UQID):
 ######################################################################################### 
 
   
-#mergeDBs('D:/Test/kicker16/kicker_main.sqlite', 'D:/Test/kicker16/kicker_sub_4_6.sqlite', 'Tactics1_16')
+#mergeDBs('D:/Test/kicker/kicker_main.sqlite', 'D:/Test/kicker/kicker_main_2.sqlite', 'Tactics1_16')
 
 #fillDBs('D:/Test/kicker/kicker_main.sqlite', 'D:/Test/kicker/kicker_main_2.sqlite', 'BL1_16', 'Manager_ID') 
  
  
 
 
-scrapeTactics('D:/Test/kicker/kicker_main.sqlite', season, league, list(range(26,29))) 
+scrapeTactics('D:/Test/kicker/kicker_main.sqlite', season, league, [31,32,33]) 
 
 
   
-#scrapePoints(dbName,league,30,minGD=27)
+#scrapePoints(dbName,league,33,minGD=33)
 
 
 
